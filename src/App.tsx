@@ -55,11 +55,64 @@ import { FAQ, DOG_CATEGORIES } from './constants';
 import { Search, Verified, LayoutDashboard, PawPrint, Users, FileText, Plane, User, Menu } from 'lucide-react';
 
 export default function App() {
-  const [activePage, setActivePage] = useState(() => localStorage.getItem('activePage') || 'home');
+  // Helper to parse location hash
+  const parseHash = () => {
+    const hash = window.location.hash || '#/home';
+    const parts = hash.replace(/^#\/?/, '').split('/');
+    const page = parts[0] || 'home';
+    const tab = parts[1] || 'dashboard';
+    return { page, tab };
+  };
+
+  const navigateTo = (page: string, tab?: string) => {
+    if (page === 'admin') {
+      window.location.hash = `#/admin/${tab || 'dashboard'}`;
+    } else if (page === 'owner') {
+      window.location.hash = `#/owner/${tab || 'dashboard'}`;
+    } else {
+      window.location.hash = `#/${page}`;
+    }
+  };
+
+  const [activePage, setActivePage] = useState(() => {
+    const { page } = parseHash();
+    const savedUser = localStorage.getItem('currentUser');
+    const user = savedUser ? JSON.parse(savedUser) : null;
+    if (page === 'admin' && (!user || user.role !== 'admin')) return 'home';
+    if (page === 'owner' && (!user || user.role !== 'owner')) return 'home';
+    return page;
+  });
+
   const [currentUser, setCurrentUser] = useState<any>(() => {
     const saved = localStorage.getItem('currentUser');
     return saved ? JSON.parse(saved) : null;
   });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const { page } = parseHash();
+      if (page === 'admin' && (!currentUser || currentUser.role !== 'admin')) {
+        window.location.hash = '#/login';
+        return;
+      }
+      if (page === 'owner' && (!currentUser || currentUser.role !== 'owner')) {
+        window.location.hash = '#/login';
+        return;
+      }
+      setActivePage(page);
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    
+    // Initial routing setup
+    if (!window.location.hash || window.location.hash === '#/') {
+      window.location.hash = '#/home';
+    } else {
+      handleHashChange();
+    }
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [currentUser]);
 
   useEffect(() => {
     localStorage.setItem('activePage', activePage);
@@ -69,14 +122,13 @@ export default function App() {
   const handleLoginSuccess = (role: string, user: any) => {
     setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
-    const targetPage = role === 'admin' ? 'admin' : 'owner';
-    setActivePage(targetPage);
+    navigateTo(role);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
-    setActivePage('home');
+    navigateTo('home');
   };
 
   const HomeView = () => (
@@ -89,12 +141,12 @@ export default function App() {
         primaryBtn={{ 
           text: 'Verify Certificate', 
           icon: <Verified className="w-5 h-5" />,
-          onClick: () => setActivePage('verify')
+          onClick: () => navigateTo('verify')
         }}
         secondaryBtn={{ 
           text: 'Apply Now', 
           icon: <Search className="w-5 h-5" />,
-          onClick: () => setActivePage('apply')
+          onClick: () => navigateTo('apply')
         }}
       />
       <StatsBar />
@@ -104,7 +156,7 @@ export default function App() {
       <HistoryTimeline />
       <ServicesSection />
       <StepsSection />
-      <RegionalMembers onNavigate={setActivePage} />
+      <RegionalMembers onNavigate={navigateTo} />
       
       <section className="py-24 bg-brand-surface">
         <div className="max-w-3xl mx-auto px-6">
@@ -113,7 +165,7 @@ export default function App() {
         </div>
       </section>
       
-      <JoinFamilySection inverse onNavigate={setActivePage} />
+      <JoinFamilySection inverse onNavigate={navigateTo} />
     </main>
   );
 
@@ -121,7 +173,7 @@ export default function App() {
     <main>
       <VerifyHero />
       <VerifyFeatures />
-      <JoinFamilySection inverse onNavigate={setActivePage} />
+      <JoinFamilySection inverse onNavigate={navigateTo} />
     </main>
   );
 
@@ -130,7 +182,7 @@ export default function App() {
       <ApplyHero />
       <ApplyForm />
       <StepsSection />
-      <JoinFamilySection inverse onNavigate={setActivePage} />
+      <JoinFamilySection inverse onNavigate={navigateTo} />
     </main>
   );
 
@@ -138,8 +190,8 @@ export default function App() {
     <main>
       <MembersHero />
       <MembersDirectory />
-      <MembersCTA onNavigate={setActivePage} />
-      <JoinFamilySection inverse onNavigate={setActivePage} />
+      <MembersCTA onNavigate={navigateTo} />
+      <JoinFamilySection inverse onNavigate={navigateTo} />
     </main>
   );
 
@@ -147,20 +199,35 @@ export default function App() {
     <main>
       <LoginHero />
       <LoginForm onLoginSuccess={handleLoginSuccess} />
-      <JoinFamilySection inverse onNavigate={setActivePage} />
+      <JoinFamilySection inverse onNavigate={navigateTo} />
     </main>
   );
 
+
   const AdminDashboardView = () => {
-    const [adminActiveTab, setAdminActiveTab] = useState('dashboard');
+    const [adminActiveTab, setAdminActiveTab] = useState(() => {
+      const { page, tab } = parseHash();
+      return page === 'admin' ? tab : 'dashboard';
+    });
     const [isAdminSidebarOpen, setIsAdminSidebarOpen] = useState(false);
+
+    useEffect(() => {
+      const handleHashChange = () => {
+        const { page, tab } = parseHash();
+        if (page === 'admin') {
+          setAdminActiveTab(tab);
+        }
+      };
+      window.addEventListener('hashchange', handleHashChange);
+      return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
     
     return (
       <div className="flex min-h-screen bg-brand-surface font-sans text-brand-primary overflow-x-hidden">
         <AdminSidebar 
           activeTab={adminActiveTab} 
           setActiveTab={(tab) => {
-            setAdminActiveTab(tab);
+            window.location.hash = `#/admin/${tab}`;
             setIsAdminSidebarOpen(false);
           }} 
           isOpen={isAdminSidebarOpen}
@@ -180,7 +247,7 @@ export default function App() {
                   <div className="lg:col-span-2">
                     <AdminRecentActivity />
                   </div>
-                  <AdminQuickActions onTabChange={setAdminActiveTab} />
+                  <AdminQuickActions onTabChange={(tab) => window.location.hash = `#/admin/${tab}`} />
                 </div>
                 <AdminDashboardBanner />
               </>
@@ -213,35 +280,35 @@ export default function App() {
         {/* Bottom Nav for Mobile */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-brand-primary/5 shadow-2xl flex justify-around items-center py-2 px-4 z-40">
           <button 
-            onClick={() => setAdminActiveTab('dashboard')}
+            onClick={() => window.location.hash = '#/admin/dashboard'}
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'dashboard' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-bold">Home</span>
           </button>
           <button 
-            onClick={() => setAdminActiveTab('animals')}
+            onClick={() => window.location.hash = '#/admin/animals'}
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'animals' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <PawPrint className="w-5 h-5" />
             <span className="text-[10px] font-bold">Animals</span>
           </button>
           <button 
-            onClick={() => setAdminActiveTab('members')}
+            onClick={() => window.location.hash = '#/admin/members'}
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'members' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Users className="w-5 h-5" />
             <span className="text-[10px] font-bold">Members</span>
           </button>
           <button 
-            onClick={() => setAdminActiveTab('applications')}
+            onClick={() => window.location.hash = '#/admin/applications'}
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'applications' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <FileText className="w-5 h-5" />
             <span className="text-[10px] font-bold">Apps</span>
           </button>
           <button 
-            onClick={() => setAdminActiveTab('owners')}
+            onClick={() => window.location.hash = '#/admin/owners'}
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'owners' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Users className="w-5 h-5" />
@@ -253,15 +320,29 @@ export default function App() {
   };
 
   const OwnerDashboardView = () => {
-    const [ownerActiveTab, setOwnerActiveTab] = useState('dashboard');
+    const [ownerActiveTab, setOwnerActiveTab] = useState(() => {
+      const { page, tab } = parseHash();
+      return page === 'owner' ? tab : 'dashboard';
+    });
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    useEffect(() => {
+      const handleHashChange = () => {
+        const { page, tab } = parseHash();
+        if (page === 'owner') {
+          setOwnerActiveTab(tab);
+        }
+      };
+      window.addEventListener('hashchange', handleHashChange);
+      return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
 
     return (
       <div className="flex min-h-screen bg-brand-surface font-sans text-brand-primary overflow-x-hidden text-left">
         <OwnerSidebar 
           activeTab={ownerActiveTab} 
           setActiveTab={(tab) => {
-            setOwnerActiveTab(tab);
+            window.location.hash = `#/owner/${tab}`;
             setIsSidebarOpen(false);
           }} 
           isOpen={isSidebarOpen}
@@ -271,7 +352,7 @@ export default function App() {
         <main className={`flex-grow min-h-screen flex flex-col transition-all duration-300 ${isSidebarOpen ? 'ml-0' : 'ml-0 md:ml-64'} min-w-0`}>
           <OwnerHeader 
             title={ownerActiveTab === 'dashboard' ? 'Dashboard Overview' : ownerActiveTab.charAt(0).toUpperCase() + ownerActiveTab.slice(1)} 
-            setActiveTab={setOwnerActiveTab}
+            setActiveTab={(tab) => window.location.hash = `#/owner/${tab}`}
             onMenuClick={() => setIsSidebarOpen(true)}
           />
           <div className="p-4 md:p-10 pb-28 md:pb-10 space-y-10 max-w-7xl mx-auto w-full min-w-0">
@@ -284,7 +365,7 @@ export default function App() {
                   </div>
                   <Button 
                     variant="primary" 
-                    onClick={() => setOwnerActiveTab('travel')}
+                    onClick={() => window.location.hash = '#/owner/travel'}
                     className="px-10 py-4 shadow-xl shadow-brand-primary/10"
                   >
                     Submit Travel Request
@@ -323,28 +404,28 @@ export default function App() {
         {/* Bottom Nav for Mobile */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-brand-primary/5 shadow-2xl flex justify-around items-center py-2 px-4 z-40">
           <button 
-            onClick={() => setOwnerActiveTab('dashboard')}
+            onClick={() => window.location.hash = '#/owner/dashboard'}
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'dashboard' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-bold">Home</span>
           </button>
           <button 
-            onClick={() => setOwnerActiveTab('animals')}
+            onClick={() => window.location.hash = '#/owner/animals'}
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'animals' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <PawPrint className="w-5 h-5" />
             <span className="text-[10px] font-bold">Animals</span>
           </button>
           <button 
-            onClick={() => setOwnerActiveTab('travel')}
+            onClick={() => window.location.hash = '#/owner/travel'}
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'travel' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Plane className="w-5 h-5" />
             <span className="text-[10px] font-bold">Travel</span>
           </button>
           <button 
-            onClick={() => setOwnerActiveTab('profile')}
+            onClick={() => window.location.hash = '#/owner/profile'}
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'profile' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <User className="w-5 h-5" />
@@ -397,8 +478,8 @@ export default function App() {
             centered
           />
           <div className="flex flex-wrap justify-center gap-6">
-            <Button variant="primary" className="px-12 py-4">Apply Now</Button>
-            <Button variant="outline" className="px-12 py-4 shadow-sm">Verify Certificate</Button>
+            <Button variant="primary" className="px-12 py-4" onClick={() => navigateTo('apply')}>Apply Now</Button>
+            <Button variant="outline" className="px-12 py-4 shadow-sm" onClick={() => navigateTo('verify')}>Verify Certificate</Button>
           </div>
         </div>
       </section>
@@ -415,7 +496,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col font-sans text-brand-primary scroll-smooth">
-      <Navbar activePage={activePage} onNavigate={setActivePage} />
+      <Navbar activePage={activePage} onNavigate={navigateTo} />
       
       <div className="flex-grow">
         {activePage === 'home' && <HomeView />}
@@ -432,12 +513,12 @@ export default function App() {
               description="We are currently upgrading our digital systems to better serve our community."
               centered
             />
-            <Button onClick={() => setActivePage('home')}>Return Home</Button>
+            <Button onClick={() => navigateTo('home')}>Return Home</Button>
           </div>
         )}
       </div>
 
-      <Footer onNavigate={setActivePage} />
+      <Footer onNavigate={navigateTo} />
     </div>
   );
 }
