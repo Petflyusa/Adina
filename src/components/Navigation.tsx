@@ -35,8 +35,8 @@ export const Navbar = ({
   return (
     <header className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'glass-effect py-3 shadow-sm' : 'bg-transparent py-5'}`}>
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
-        <button 
-          onClick={() => onNavigate('home')}
+        <a 
+          href="#/home"
           className="flex items-center gap-2 group"
         >
           <div className="bg-brand-primary p-2 rounded-lg group-hover:rotate-12 transition-transform">
@@ -45,13 +45,13 @@ export const Navbar = ({
           <span className={`font-bold text-xl ${!isScrolled ? 'text-white' : 'text-brand-primary'}`}>
             ADI <span className="hidden sm:inline">North America</span>
           </span>
-        </button>
+        </a>
 
         <nav className="hidden md:flex items-center gap-8">
           {navItems.map(item => (
-            <button
+            <a
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              href={`#/${item.id}`}
               className={`font-semibold text-sm transition-all hover:text-brand-accent ${
                 activePage === item.id 
                   ? 'text-brand-accent border-b-2 border-brand-accent' 
@@ -59,21 +59,21 @@ export const Navbar = ({
               }`}
             >
               {item.label}
-            </button>
+            </a>
           ))}
         </nav>
 
         <div className="hidden md:flex items-center gap-4">
-          <button 
+          <a 
             className={`font-bold text-sm ${!isScrolled ? 'text-white' : 'text-brand-primary'}`}
-            onClick={() => onNavigate('login')}
+            href="#/login"
           >
             Login
-          </button>
+          </a>
           <Button 
             variant="secondary" 
             className="px-6 py-2 text-sm rounded-full"
-            onClick={() => onNavigate('apply')}
+            href="#/apply"
           >
             Apply Now
           </Button>
@@ -91,22 +91,22 @@ export const Navbar = ({
       {isMobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 w-full bg-white shadow-xl p-6 flex flex-col gap-4 animate-in slide-in-from-top duration-300">
           {navItems.map(item => (
-            <button
+            <a
               key={item.id}
+              href={`#/${item.id}`}
               onClick={() => {
-                onNavigate(item.id);
                 setIsMobileMenuOpen(false);
               }}
               className={`text-left font-bold text-lg ${activePage === item.id ? 'text-brand-accent' : 'text-brand-primary'}`}
             >
               {item.label}
-            </button>
+            </a>
           ))}
           <div className="pt-4 border-t border-brand-primary/10 flex flex-col gap-4">
             <Button 
               variant="outline"
+              href="#/login"
               onClick={() => {
-                onNavigate('login');
                 setIsMobileMenuOpen(false);
               }}
             >
@@ -114,8 +114,8 @@ export const Navbar = ({
             </Button>
             <Button 
               variant="secondary"
+              href="#/apply"
               onClick={() => {
-                onNavigate('apply');
                 setIsMobileMenuOpen(false);
               }}
             >
@@ -145,17 +145,17 @@ export const Footer = ({ onNavigate }: { onNavigate?: (page: string) => void }) 
         <div>
           <h4 className="font-bold text-lg mb-6 text-brand-accent">Quick Links</h4>
           <ul className="space-y-4 text-white/70">
-            <li><button onClick={() => onNavigate?.('home')} className="hover:text-white transition-colors">Home</button></li>
-            <li><button onClick={() => onNavigate?.('verify')} className="hover:text-white transition-colors">Verify</button></li>
-            <li><button onClick={() => onNavigate?.('apply')} className="hover:text-white transition-colors">Apply</button></li>
-            <li><button onClick={() => onNavigate?.('guide')} className="hover:text-white transition-colors">Guide</button></li>
+            <li><a href="#/home" className="hover:text-white transition-colors">Home</a></li>
+            <li><a href="#/verify" className="hover:text-white transition-colors">Verify</a></li>
+            <li><a href="#/apply" className="hover:text-white transition-colors">Apply</a></li>
+            <li><a href="#/guide" className="hover:text-white transition-colors">Guide</a></li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-bold text-lg mb-6 text-brand-accent">Resources</h4>
           <ul className="space-y-4 text-white/70">
-            <li><button onClick={() => onNavigate?.('members')} className="hover:text-white transition-colors">Members</button></li>
+            <li><a href="#/members" className="hover:text-white transition-colors">Members</a></li>
             <li><a href="https://assistancedogsinternational.org/" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ADI Official</a></li>
             <li><a href="#" className="hover:text-white transition-colors">Latest News</a></li>
           </ul>
@@ -164,8 +164,8 @@ export const Footer = ({ onNavigate }: { onNavigate?: (page: string) => void }) 
         <div>
           <h4 className="font-bold text-lg mb-6 text-brand-accent">Admin</h4>
           <ul className="space-y-4 text-white/70">
-            <li><button onClick={() => onNavigate?.('admin')} className="hover:text-white transition-colors">Admin Panel</button></li>
-            <li><button onClick={() => onNavigate?.('admin')} className="hover:text-white transition-colors">Dashboard</button></li>
+            <li><a href="#/admin" className="hover:text-white transition-colors">Admin Panel</a></li>
+            <li><a href="#/admin" className="hover:text-white transition-colors">Dashboard</a></li>
           </ul>
         </div>
       </div>

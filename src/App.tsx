@@ -141,11 +141,13 @@ export default function App() {
         primaryBtn={{ 
           text: 'Verify Certificate', 
           icon: <Verified className="w-5 h-5" />,
+          href: '#/verify',
           onClick: () => navigateTo('verify')
         }}
         secondaryBtn={{ 
           text: 'Apply Now', 
           icon: <Search className="w-5 h-5" />,
+          href: '#/apply',
           onClick: () => navigateTo('apply')
         }}
       />
@@ -279,41 +281,41 @@ export default function App() {
 
         {/* Bottom Nav for Mobile */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-brand-primary/5 shadow-2xl flex justify-around items-center py-2 px-4 z-40">
-          <button 
-            onClick={() => window.location.hash = '#/admin/dashboard'}
+          <a 
+            href="#/admin/dashboard"
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'dashboard' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-bold">Home</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/admin/animals'}
+          </a>
+          <a 
+            href="#/admin/animals"
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'animals' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <PawPrint className="w-5 h-5" />
             <span className="text-[10px] font-bold">Animals</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/admin/members'}
+          </a>
+          <a 
+            href="#/admin/members"
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'members' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Users className="w-5 h-5" />
             <span className="text-[10px] font-bold">Members</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/admin/applications'}
+          </a>
+          <a 
+            href="#/admin/applications"
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'applications' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <FileText className="w-5 h-5" />
             <span className="text-[10px] font-bold">Apps</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/admin/owners'}
+          </a>
+          <a 
+            href="#/admin/owners"
             className={`flex flex-col items-center gap-1 p-2 ${adminActiveTab === 'owners' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Users className="w-5 h-5" />
             <span className="text-[10px] font-bold">Owners</span>
-          </button>
+          </a>
         </div>
       </div>
     );
@@ -365,7 +367,7 @@ export default function App() {
                   </div>
                   <Button 
                     variant="primary" 
-                    onClick={() => window.location.hash = '#/owner/travel'}
+                    href="#/owner/travel"
                     className="px-10 py-4 shadow-xl shadow-brand-primary/10"
                   >
                     Submit Travel Request
@@ -403,34 +405,34 @@ export default function App() {
 
         {/* Bottom Nav for Mobile */}
         <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-brand-primary/5 shadow-2xl flex justify-around items-center py-2 px-4 z-40">
-          <button 
-            onClick={() => window.location.hash = '#/owner/dashboard'}
+          <a 
+            href="#/owner/dashboard"
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'dashboard' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span className="text-[10px] font-bold">Home</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/owner/animals'}
+          </a>
+          <a 
+            href="#/owner/animals"
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'animals' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <PawPrint className="w-5 h-5" />
             <span className="text-[10px] font-bold">Animals</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/owner/travel'}
+          </a>
+          <a 
+            href="#/owner/travel"
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'travel' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <Plane className="w-5 h-5" />
             <span className="text-[10px] font-bold">Travel</span>
-          </button>
-          <button 
-            onClick={() => window.location.hash = '#/owner/profile'}
+          </a>
+          <a 
+            href="#/owner/profile"
             className={`flex flex-col items-center gap-1 p-2 ${ownerActiveTab === 'profile' ? 'text-brand-accent' : 'text-brand-primary/40'}`}
           >
             <User className="w-5 h-5" />
             <span className="text-[10px] font-bold">Profile</span>
-          </button>
+          </a>
         </div>
       </div>
     );

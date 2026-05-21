@@ -43,14 +43,18 @@ export const Button = ({
   className = '',
   onClick,
   disabled,
-  type = 'button'
+  type = 'button',
+  href,
+  ...rest
 }: { 
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost', 
   children: React.ReactNode, 
   className?: string,
   onClick?: () => void,
   disabled?: boolean,
-  type?: 'button' | 'submit' | 'reset'
+  type?: 'button' | 'submit' | 'reset',
+  href?: string,
+  [key: string]: any
 }) => {
   const variants = {
     primary: 'bg-brand-primary text-white hover:bg-brand-primary/90',
@@ -59,12 +63,28 @@ export const Button = ({
     ghost: 'text-brand-primary hover:bg-brand-primary/5'
   };
 
+  const classes = `px-8 py-3 rounded-lg font-semibold transition-all active:scale-95 duration-150 inline-block text-center ${variants[variant]} ${className}`;
+
+  if (href) {
+    return (
+      <a 
+        href={href} 
+        onClick={onClick}
+        className={classes}
+        {...rest}
+      >
+        {children}
+      </a>
+    );
+  }
+
   return (
     <button 
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className={`px-8 py-3 rounded-lg font-semibold transition-all active:scale-95 duration-150 ${variants[variant]} ${className}`}
+      className={classes}
+      {...rest}
     >
       {children}
     </button>

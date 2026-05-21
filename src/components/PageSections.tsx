@@ -2175,8 +2175,9 @@ export const AdminSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
 
         <nav className="flex-grow space-y-1">
           {menuItems.map((item) => (
-            <button
+            <a
               key={item.id}
+              href={`#/admin/${item.id}`}
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
                 activeTab === item.id 
@@ -2186,7 +2187,7 @@ export const AdminSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
             >
               {item.icon}
               {item.label}
-            </button>
+            </a>
           ))}
         </nav>
 
@@ -5641,8 +5642,9 @@ export const AdminQuickActions = ({ onTabChange }: { onTabChange?: (tab: string)
         { id: 'applications', label: 'Generate Reports', sub: 'Monthly compliance summary', icon: <FileText />, color: 'bg-white/10 text-white' },
         { id: 'owners', label: 'Member Bulletin', sub: 'Send mass notification', icon: <Mail />, color: 'bg-white/10 text-white' }
       ].map((action, i) => (
-        <button 
+        <a 
           key={i} 
+          href={`#/admin/${action.id}`}
           onClick={() => onTabChange?.(action.id)}
           className="w-full flex items-center gap-4 p-4 rounded-2xl hover:bg-white/5 transition-all group text-left"
         >
@@ -5653,7 +5655,7 @@ export const AdminQuickActions = ({ onTabChange }: { onTabChange?: (tab: string)
             <p className="font-bold text-sm">{action.label}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-white/40">{action.sub}</p>
           </div>
-        </button>
+        </a>
       ))}
     </div>
     <div className="mt-8 p-6 bg-white/5 rounded-[1.5rem] border border-white/5">
@@ -5726,7 +5728,7 @@ export const OwnerSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
           </button>
         </div>
 
-        <div className="flex items-center gap-3 mb-12 p-3 bg-brand-primary/5 rounded-2xl cursor-pointer hover:bg-brand-primary/10 transition-colors" onClick={() => setActiveTab('profile')}>
+        <a href="#/owner/profile" className="flex items-center gap-3 mb-12 p-3 bg-brand-primary/5 rounded-2xl cursor-pointer hover:bg-brand-primary/10 transition-colors" onClick={() => setActiveTab('profile')}>
           <div className="w-10 h-10 rounded-full border-2 border-brand-accent overflow-hidden bg-brand-surface flex items-center justify-center">
             {currentUser?.img ? (
               <img 
@@ -5743,12 +5745,13 @@ export const OwnerSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
             <p className="text-xs font-bold text-brand-primary truncate">{currentUser?.name || 'Loading...'}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30 truncate">ID: {currentUser?.registry_id || '...'}</p>
           </div>
-        </div>
+        </a>
 
         <nav className="flex-grow space-y-1">
           {menuItems.map((item) => (
-            <button
+            <a
               key={item.id}
+              href={`#/owner/${item.id}`}
               onClick={() => setActiveTab(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
                 activeTab === item.id 
@@ -5758,12 +5761,13 @@ export const OwnerSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
             >
               {item.icon}
               {item.label}
-            </button>
+            </a>
           ))}
         </nav>
 
         <div className="pt-6 border-t border-brand-primary/5 space-y-2">
-          <button 
+          <a 
+            href="#/owner/settings"
             onClick={() => setActiveTab('settings')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
               activeTab === 'settings' 
@@ -5773,7 +5777,7 @@ export const OwnerSidebar = ({ activeTab, setActiveTab, onLogout, isOpen, onClos
           >
             <Settings className="w-5 h-5" />
             Settings
-          </button>
+          </a>
           <button 
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm text-status-error/60 hover:bg-status-error/5 transition-all"
@@ -5856,16 +5860,18 @@ export const OwnerHeader = ({ title, setActiveTab, onMenuClick }: { title: strin
           )}
         </div>
         
-        <button 
+        <a 
+          href="#/owner/settings"
           onClick={() => setActiveTab('settings')}
           className="p-2 text-brand-primary/30 hover:text-brand-primary transition-colors"
         >
           <Settings className="w-5 h-5" />
-        </button>
+        </a>
         
         <div className="w-px h-6 bg-brand-primary/5"></div>
         
-        <div 
+        <a 
+          href="#/owner/profile"
           onClick={() => setActiveTab('profile')}
           className="flex items-center gap-3 group cursor-pointer"
         >
@@ -5876,7 +5882,7 @@ export const OwnerHeader = ({ title, setActiveTab, onMenuClick }: { title: strin
             <p className="text-xs font-bold text-brand-primary group-hover:text-brand-accent transition-colors">{displayName}</p>
             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Registry# {displayId}</p>
           </div>
-        </div>
+        </a>
       </div>
     </header>
   );
@@ -6851,8 +6857,8 @@ export const Hero = ({
   subtitle?: string,
   description: string,
   bgImage: string,
-  primaryBtn?: { text: string, icon: React.ReactNode, onClick?: () => void },
-  secondaryBtn?: { text: string, icon: React.ReactNode, onClick?: () => void }
+  primaryBtn?: { text: string, icon: React.ReactNode, onClick?: () => void, href?: string },
+  secondaryBtn?: { text: string, icon: React.ReactNode, onClick?: () => void, href?: string }
 }) => (
   <section className="relative min-h-[95vh] flex items-center justify-center pt-24 overflow-hidden">
     <div className="absolute inset-0 z-0">
@@ -6902,6 +6908,7 @@ export const Hero = ({
         {primaryBtn && (
           <Button 
             variant="secondary" 
+            href={primaryBtn.href}
             onClick={primaryBtn.onClick}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-10 py-4 shadow-xl shadow-brand-accent/20"
           >
@@ -6912,6 +6919,7 @@ export const Hero = ({
         {secondaryBtn && (
           <Button 
             variant="ghost" 
+            href={secondaryBtn.href}
             onClick={secondaryBtn.onClick}
             className="w-full sm:w-auto flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 px-10 py-4 backdrop-blur-md"
           >
@@ -7331,8 +7339,8 @@ export const LegacySection = () => (
         With over 300 member programs across 30+ countries, ADI represents the gold standard in assistance dog training and placement worldwide. Every assistance dog team receives comprehensive training and lifetime support.
       </p>
       <div className="flex gap-4">
-        <Button variant="primary">Learn More</Button>
-        <Button variant="outline">Official ADI Site</Button>
+        <Button href="#/guide" variant="primary">Learn More</Button>
+        <Button href="https://assistancedogsinternational.org/" target="_blank" rel="noopener noreferrer" variant="outline">Official ADI Site</Button>
       </div>
     </motion.div>
     
@@ -7506,7 +7514,7 @@ export const HistoryTimeline = () => (
           ))}
         </ul>
         
-        <Button variant="secondary" className="w-full mt-14 py-5 text-xl rounded-2xl shadow-xl shadow-brand-accent/10">View Full Standards</Button>
+        <Button href="#/guide" variant="secondary" className="w-full mt-14 py-5 text-xl rounded-2xl shadow-xl shadow-brand-accent/10">View Full Standards</Button>
       </motion.div>
     </div>
   </section>
@@ -8311,7 +8319,7 @@ export const MembersCTA = ({ onNavigate }: { onNavigate?: (page: string) => void
         <Button 
           variant="secondary" 
           className="px-12 py-5 text-xl rounded-2xl shadow-2xl shadow-brand-accent/20"
-          onClick={() => onNavigate?.('apply')}
+          href="#/apply"
         >
           Apply for Membership
         </Button>
@@ -8487,7 +8495,7 @@ export const RegionalMembers = ({ onNavigate }: { onNavigate?: (page: string) =>
       <Button 
         variant="primary" 
         className="px-12 py-4 rounded-2xl shadow-xl shadow-brand-primary/10"
-        onClick={() => onNavigate?.('members')}
+        href="#/members"
       >
         Browse All Members
       </Button>
@@ -8538,7 +8546,7 @@ export const GuideHero = () => (
           Comprehensive guide to Assistance Dogs International standards, training requirements, and the rigorous certification process for global service animals.
         </p>
         <div className="flex flex-wrap gap-4">
-          <Button variant="secondary" className="px-10 py-4 flex items-center gap-2 shadow-xl shadow-brand-accent/10">
+          <Button href="#/apply" variant="secondary" className="px-10 py-4 flex items-center gap-2 shadow-xl shadow-brand-accent/10">
             <FileText className="w-5 h-5" />
             Apply for Certification
           </Button>
@@ -8825,7 +8833,7 @@ export const JoinFamilySection = ({ inverse = false, onNavigate }: { inverse?: b
       <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
         <Button 
           variant="secondary" 
-          onClick={() => onNavigate?.('verify')}
+          href="#/verify"
           className="w-full sm:w-auto px-12 py-5 text-xl rounded-2xl shadow-2xl shadow-brand-accent/20 flex items-center justify-center gap-3"
         >
           <Verified className="w-6 h-6" />
@@ -8833,7 +8841,7 @@ export const JoinFamilySection = ({ inverse = false, onNavigate }: { inverse?: b
         </Button>
         <Button 
           variant="ghost" 
-          onClick={() => onNavigate?.('apply')}
+          href="#/apply"
           className={`w-full sm:w-auto px-12 py-5 text-xl rounded-2xl border ${inverse ? 'border-white/20 text-white hover:bg-white/10' : 'border-brand-primary/10 text-brand-primary hover:bg-brand-primary/5'} backdrop-blur-md flex items-center justify-center gap-3`}
         >
           <Workflow className="w-6 h-6" />
