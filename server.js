@@ -92,6 +92,20 @@ async function saveBase64Image(base64Str) {
     const conn = await pool.getConnection();
     console.log('Successfully connected to Hostinger MySQL Database.');
     
+    // Check if the database is initialized
+    const [tables] = await conn.query("SHOW TABLES LIKE 'users'");
+    if (tables.length === 0) {
+      console.log('Database tables not found. Initializing schema from schema.sql...');
+      const sqlPath = path.join(__dirname, 'schema.sql');
+      if (fs.existsSync(sqlPath)) {
+        const sql = fs.readFileSync(sqlPath, 'utf8');
+        await conn.query(sql);
+        console.log('Database schema successfully initialized and seeded.');
+      } else {
+        console.warn('schema.sql not found at ' + sqlPath);
+      }
+    }
+    
     // Auto-migrate applications table to add pet_photo column if not present
     const [columns] = await conn.query("SHOW COLUMNS FROM applications LIKE 'pet_photo'");
     if (columns.length === 0) {
