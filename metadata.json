@@ -1,0 +1,6 @@
+{
+  "name": "ADI Global",
+  "description": "Assistance Dogs International (ADI) brand redesign with training standards, verification, and member programs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

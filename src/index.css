@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  
+  --color-brand-primary: #022448;
+  --color-brand-accent: #ffb94e;
+  --color-brand-accent-light: #ffddb2;
+  --color-brand-surface: #f7f9fb;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-surface text-brand-primary font-sans antialiased;
+  }
+}
+
+.glass-effect {
+  @apply backdrop-blur-md bg-white/80 border border-white/20;
+}
+
+.card-hover-lift {
+  @apply transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:shadow-brand-primary/10;
+}
+
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
