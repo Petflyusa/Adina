@@ -1997,16 +1997,13 @@ export const AdminAnimalsSection = () => {
             </div>
           </div>
           <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto justify-end">
-            <Button variant="outline" className="flex items-center gap-2 px-4 text-xs w-full sm:w-auto justify-center">
-              <Download className="w-4 h-4" /> Export CSV
-            </Button>
             <Button 
               variant="secondary" 
               onClick={() => setIsAddModalOpen(true)}
               className="flex items-center gap-2 px-6 text-xs shadow-lg shadow-brand-accent/20 group w-full sm:w-auto justify-center"
             >
-              <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
               Add Service Animal
+              <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
             </Button>
           </div>
         </div>
