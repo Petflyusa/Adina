@@ -2000,7 +2000,7 @@ export const AdminAnimalsSection = () => {
             <Button 
               variant="secondary" 
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-6 text-xs shadow-lg shadow-brand-accent/20 group w-full sm:w-auto justify-center whitespace-nowrap"
+              className="px-6 text-xs shadow-lg shadow-brand-accent/20 group w-full sm:w-auto whitespace-nowrap"
             >
               <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
               Add Service Animal
@@ -3184,7 +3184,7 @@ export const AdminOwnersSection = () => {
         <Button 
           variant="primary" 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group"
+          className="px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group"
         >
           <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
           Issue Credentials
@@ -4432,7 +4432,7 @@ export const AdminMembersSection = () => {
               };
               input.click();
             }}
-            className="flex items-center gap-2 px-4 sm:px-8 py-3 rounded-xl shadow-sm border border-brand-primary/5 bg-white hover:bg-brand-surface text-brand-primary font-bold text-xs w-full sm:w-auto justify-center"
+            className="px-4 sm:px-8 py-3 rounded-xl shadow-sm border border-brand-primary/5 bg-white hover:bg-brand-surface text-brand-primary font-bold text-xs w-full sm:w-auto"
           >
             <Upload className="w-4 h-4" />
             Import CSV
@@ -4440,7 +4440,7 @@ export const AdminMembersSection = () => {
           <Button 
             variant="primary" 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 sm:px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group w-full sm:w-auto justify-center"
+            className="px-4 sm:px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group w-full sm:w-auto"
           >
             <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
             Add New Member
@@ -6736,7 +6736,7 @@ export const OwnerTravelSection = () => {
         <Button 
           variant="primary" 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group"
+          className="px-8 py-3 rounded-xl shadow-lg shadow-brand-primary/10 group"
         >
           <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
           New Travel Request
@@ -6907,7 +6907,7 @@ export const Hero = ({
             variant="secondary" 
             href={primaryBtn.href}
             onClick={primaryBtn.onClick}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-10 py-4 shadow-xl shadow-brand-accent/20"
+            className="w-full sm:w-auto px-10 py-4 shadow-xl shadow-brand-accent/20"
           >
             {primaryBtn.icon}
             {primaryBtn.text}
@@ -6918,7 +6918,7 @@ export const Hero = ({
             variant="ghost" 
             href={secondaryBtn.href}
             onClick={secondaryBtn.onClick}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 px-10 py-4 backdrop-blur-md"
+            className="w-full sm:w-auto border border-white/30 text-white hover:bg-white/10 px-10 py-4 backdrop-blur-md"
           >
             {secondaryBtn.icon}
             {secondaryBtn.text}
@@ -7025,7 +7025,7 @@ export const VerifyHero = () => {
                     variant="primary" 
                     onClick={handleVerify}
                     disabled={isSearching || !searchTerm}
-                    className="w-full py-5 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-brand-primary/20 disabled:opacity-50"
+                    className="w-full py-5 rounded-2xl text-lg shadow-xl shadow-brand-primary/20 disabled:opacity-50"
                   >
                     {isSearching ? (
                       <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
@@ -7415,7 +7415,7 @@ export const DogTypesSection = () => (
         <h2 className="text-3xl md:text-5xl font-bold mb-4 tracking-tight">Types of Assistance Dogs</h2>
         <p className="text-xl text-brand-primary/60 font-light">ADI programs train dogs for various specialized roles to assist people with diverse disabilities.</p>
       </div>
-      <Button variant="ghost" className="flex items-center gap-2 group border border-brand-primary/10 px-6">
+      <Button variant="ghost" className="group border border-brand-primary/10 px-6">
         View Gallery <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
       </Button>
     </div>
@@ -8023,7 +8023,7 @@ export const ApplyForm = () => {
               variant="primary" 
               type="submit"
               disabled={isSubmitting}
-              className="w-full md:w-auto px-16 py-5 text-xl rounded-2xl flex items-center justify-center gap-3 shadow-2xl shadow-brand-primary/10 group disabled:opacity-50"
+              className="w-full md:w-auto px-16 py-5 text-xl rounded-2xl shadow-2xl shadow-brand-primary/10 group disabled:opacity-50"
             >
               {isSubmitting ? 'Submitting Application...' : 'Submit Application'}
               {!isSubmitting && <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />}
@@ -8170,7 +8170,7 @@ export const MembersDirectory = () => {
                 setDogTypeFilter('All Types');
                 setDisabilityFilter('All Disabilities');
               }}
-              className="w-full py-4 text-sm rounded-xl flex items-center justify-center gap-2 group font-bold tracking-widest uppercase"
+              className="w-full py-4 text-sm rounded-xl group font-bold tracking-widest uppercase"
             >
               Reset Filters
             </Button>
@@ -8284,7 +8284,7 @@ export const MembersDirectory = () => {
                       <Button 
                         variant="primary" 
                         onClick={() => { setSelectedMember(member); setIsViewOpen(true); }}
-                        className="w-full py-3 text-xs rounded-xl flex items-center justify-center gap-2 font-bold tracking-widest uppercase shadow-md shadow-brand-primary/5 hover:shadow-lg transition-all"
+                        className="w-full py-3 text-xs rounded-xl font-bold tracking-widest uppercase shadow-md shadow-brand-primary/5 hover:shadow-lg transition-all"
                       >
                         <Eye className="w-3.5 h-3.5" /> View More Info
                       </Button>
@@ -8458,7 +8458,7 @@ export const LoginForm = ({ onLoginSuccess, onRegisterClick }: { onLoginSuccess?
                 variant="primary" 
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-5 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-brand-primary/10 group disabled:opacity-50"
+                className="w-full py-5 rounded-2xl text-lg shadow-xl shadow-brand-primary/10 group disabled:opacity-50"
               >
                 {isLoading ? 'Signing In...' : activeTab === 'owner' ? 'Sign In' : 'Admin Portal Login'}
                 {!isLoading && <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />}
@@ -8543,11 +8543,11 @@ export const GuideHero = () => (
           Comprehensive guide to Assistance Dogs International standards, training requirements, and the rigorous certification process for global service animals.
         </p>
         <div className="flex flex-wrap gap-4">
-          <Button href="#/apply" variant="secondary" className="px-10 py-4 flex items-center gap-2 shadow-xl shadow-brand-accent/10">
+          <Button href="#/apply" variant="secondary" className="px-10 py-4 shadow-xl shadow-brand-accent/10">
             <FileText className="w-5 h-5" />
             Apply for Certification
           </Button>
-          <Button variant="ghost" className="border border-white/20 text-white hover:bg-white/10 px-10 py-4 flex items-center gap-2 backdrop-blur-md">
+          <Button variant="ghost" className="border border-white/20 text-white hover:bg-white/10 px-10 py-4 backdrop-blur-md">
             <Activity className="w-5 h-5" />
             View Standards Video
           </Button>

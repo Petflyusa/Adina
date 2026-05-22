@@ -63,7 +63,7 @@ export const Button = ({
     ghost: 'text-brand-primary hover:bg-brand-primary/5'
   };
 
-  const classes = `px-8 py-3 rounded-lg font-semibold transition-all active:scale-95 duration-150 inline-block text-center ${variants[variant]} ${className}`;
+  const classes = `px-8 py-3 rounded-lg font-semibold transition-all active:scale-95 duration-150 inline-flex items-center justify-center gap-2 text-center ${variants[variant]} ${className}`;
 
   if (href) {
     return (
