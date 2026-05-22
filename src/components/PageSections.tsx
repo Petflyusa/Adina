@@ -6276,7 +6276,7 @@ export const OwnerAddAnimalModal = ({ isOpen, onClose, onAdd }: { isOpen: boolea
           breed: data.animal.breed,
           id: `#${data.animal.id}`,
           status: data.animal.status || 'Active',
-          img: data.animal.photo || 'https://images.unsplash.com/photo-1541888946425-d81bb19480c5?auto=format&fit=crop&q=80&w=200'
+          img: data.animal.img || data.animal.photo || 'https://images.unsplash.com/photo-1541888946425-d81bb19480c5?auto=format&fit=crop&q=80&w=200'
         });
         setMicrochip('');
         setFoundAnimal(null);

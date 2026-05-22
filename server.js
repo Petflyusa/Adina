@@ -721,7 +721,7 @@ app.post('/api/admin/animals', async (req, res) => {
         rabies_expiration, rabies_serial, rabies_brand, rabies_type,
         facility_name, trainer_name, trained_task, completion_date, handler_id, status, img,
         doc_attestation, doc_certificate, doc_id, doc_other
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         registry_id, data.name, data.breed, data.gender, data.weight, data.microchip, data.date_of_birth || null, data.color,
         data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type,
