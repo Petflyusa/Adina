@@ -2000,10 +2000,10 @@ export const AdminAnimalsSection = () => {
             <Button 
               variant="secondary" 
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-6 text-xs shadow-lg shadow-brand-accent/20 group w-full sm:w-auto justify-center"
+              className="flex items-center gap-2 px-6 text-xs shadow-lg shadow-brand-accent/20 group w-full sm:w-auto justify-center whitespace-nowrap"
             >
-              Add Service Animal
               <PlusCircle className="w-4 h-4 group-hover:rotate-90 transition-transform" /> 
+              Add Service Animal
             </Button>
           </div>
         </div>
