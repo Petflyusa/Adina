@@ -16,7 +16,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Create connection pool
 const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
+  host: process.env.DB_HOST || 'srv1294.hstgr.io',
   port: parseInt(process.env.DB_PORT || '3306', 10),
   user: process.env.DB_USER || 'u727344629_adinapet',
   password: process.env.DB_PASSWORD || 'Jz10191019@@',
