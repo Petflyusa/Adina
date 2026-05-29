@@ -207,6 +207,41 @@ async function saveBase64Image(base64Str) {
 // 1. PUBLIC API ENDPOINTS
 // ==========================================
 
+app.get('/api/test-db-connection', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT 1 + 1 AS result');
+    conn.release();
+    return res.json({ 
+      success: true, 
+      message: 'Successfully connected to database!', 
+      result: rows[0].result,
+      config: {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        database: dbConfig.database,
+        hasPassword: !!dbConfig.password
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ 
+      success: false, 
+      error: err.message,
+      code: err.code,
+      errno: err.errno,
+      sqlState: err.sqlState,
+      config: {
+        host: dbConfig.host,
+        port: dbConfig.port,
+        user: dbConfig.user,
+        database: dbConfig.database,
+        hasPassword: !!dbConfig.password
+      }
+    });
+  }
+});
+
 // Verify Service Animal by Microchip
 app.get('/api/verify/:microchip', async (req, res) => {
   const { microchip } = req.params;
