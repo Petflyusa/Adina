@@ -14,13 +14,13 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Database connection configuration
+// Create connection pool
 const dbConfig = {
-  host: process.env.DB_HOST || 'srv1294.hstgr.io',
+  host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306', 10),
-  user: process.env.DB_USER || 'u727344629_adi',
+  user: process.env.DB_USER || 'u727344629_adinapet',
   password: process.env.DB_PASSWORD || 'Jz10191019@@',
-  database: process.env.DB_NAME || 'u727344629_adi',
+  database: process.env.DB_NAME || 'u727344629_adinapet',
   connectionLimit: 10,
   multipleStatements: true
 };
