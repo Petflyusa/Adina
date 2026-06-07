@@ -124,7 +124,6 @@ async function logActivity(type, description, userId = null) {
   }
 }
 
-// Helper to save base64 files (images/PDFs) and return URL path
 async function saveBase64File(base64Str, prefix = 'doc') {
   if (!base64Str || !base64Str.startsWith('data:')) {
     return base64Str; // Return as-is if it's already a URL or empty
@@ -148,16 +147,31 @@ async function saveBase64File(base64Str, prefix = 'doc') {
     const base64Data = matches[2];
     const buffer = Buffer.from(base64Data, 'base64');
 
-    const uploadsDir = path.join(__dirname, 'uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    const filename = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
+    
+    const projectRef = 'tfiuayzwivtlnswgklhf';
+    const anonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmaXVheXp3aXZ0bG5zd2drbGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3OTkzNjgsImV4cCI6MjA5NjM3NTM2OH0.PM9XWV1wfDhC93S7ZW6TVqECrIQEO9KkV_XkWrNB1wU';
+
+    const uploadUrl = `https://${projectRef}.supabase.co/storage/v1/object/adina/${filename}`;
+
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
+        'Content-Type': mimeType
+      },
+      body: buffer
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Failed to upload file to Supabase Storage:', response.status, errText);
+      return null;
     }
 
-    const filename = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
-    const filePath = path.join(uploadsDir, filename);
-    await fs.promises.writeFile(filePath, buffer);
-
-    return `/uploads/${filename}`;
+    const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/adina/${filename}`;
+    return publicUrl;
   } catch (err) {
     console.error('Failed to save base64 file:', err);
     return null;
