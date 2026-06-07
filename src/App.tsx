@@ -91,11 +91,13 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const { page } = parseHash();
-      if (page === 'admin' && (!currentUser || currentUser.role !== 'admin')) {
+      const savedUser = localStorage.getItem('currentUser');
+      const user = savedUser ? JSON.parse(savedUser) : null;
+      if (page === 'admin' && (!user || user.role !== 'admin')) {
         window.location.hash = '#/login';
         return;
       }
-      if (page === 'owner' && (!currentUser || currentUser.role !== 'owner')) {
+      if (page === 'owner' && (!user || user.role !== 'owner')) {
         window.location.hash = '#/login';
         return;
       }
@@ -112,7 +114,7 @@ export default function App() {
     }
 
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [currentUser]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('activePage', activePage);

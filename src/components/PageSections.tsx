@@ -7121,6 +7121,16 @@ export const VerifyHero = () => {
                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/20 mb-1">Microchip Number</p>
                             <p className="text-sm font-bold font-mono">{result.pet.microchip}</p>
                           </div>
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/20 mb-1">Status</p>
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest w-fit ${
+                              result.pet.status.includes('Active') ? 'bg-status-success/10 text-status-success' :
+                              result.pet.status.includes('Pending') ? 'bg-status-warning/10 text-status-warning' :
+                              'bg-status-error/10 text-status-error'
+                            }`}>
+                              {result.pet.status}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
