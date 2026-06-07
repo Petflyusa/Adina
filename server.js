@@ -29,9 +29,36 @@ const pgPool = new pg.Pool({
 
 // A helper to convert MySQL query to PostgreSQL query (replacing ? with $1, $2...)
 function mysqlToPostgresQuery(sql, params = []) {
-  let index = 1;
-  let postgresSql = sql.replace(/\?/g, () => `$${index++}`);
-  
+  let postgresSql = '';
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let inBacktick = false;
+  let paramIndex = 1;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    if (char === "'" && sql[i - 1] !== '\\') {
+      if (!inDoubleQuote && !inBacktick) {
+        inSingleQuote = !inSingleQuote;
+      }
+      postgresSql += char;
+    } else if (char === '"' && sql[i - 1] !== '\\') {
+      if (!inSingleQuote && !inBacktick) {
+        inDoubleQuote = !inDoubleQuote;
+      }
+      postgresSql += char;
+    } else if (char === '`' && sql[i - 1] !== '\\') {
+      if (!inSingleQuote && !inDoubleQuote) {
+        inBacktick = !inBacktick;
+      }
+      postgresSql += char;
+    } else if (char === '?' && !inSingleQuote && !inDoubleQuote && !inBacktick) {
+      postgresSql += `$${paramIndex++}`;
+    } else {
+      postgresSql += char;
+    }
+  }
+
   // If it's an INSERT, append RETURNING id
   const trimmed = postgresSql.trim();
   const isInsert = trimmed.match(/^insert\s+into/i);
