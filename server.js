@@ -477,11 +477,12 @@ app.post('/api/auth/login', async (req, res) => {
 // Owner Stats
 app.get('/api/owner/stats/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
+  const parsedOwnerId = parseInt(ownerId, 10);
   try {
-    const [[animalsCount]] = await pool.query('SELECT COUNT(*) AS total FROM animals WHERE handler_id = ?', [ownerId]);
-    const [[activeRequests]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Pending'", [ownerId]);
-    const [[certifiedCount]] = await pool.query("SELECT COUNT(*) AS total FROM animals WHERE handler_id = ? AND status = 'Certified'", [ownerId]);
-    const [[completedTrips]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Approved'", [ownerId]);
+    const [[animalsCount]] = await pool.query('SELECT COUNT(*) AS total FROM animals WHERE handler_id = ?', [parsedOwnerId]);
+    const [[activeRequests]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Pending'", [parsedOwnerId]);
+    const [[certifiedCount]] = await pool.query("SELECT COUNT(*) AS total FROM animals WHERE handler_id = ? AND status = 'Certified'", [parsedOwnerId]);
+    const [[completedTrips]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Approved'", [parsedOwnerId]);
 
     res.json({
       success: true,
@@ -502,7 +503,7 @@ app.get('/api/owner/stats/:ownerId', async (req, res) => {
 app.get('/api/owner/animals/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
   try {
-    const [animals] = await pool.query('SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC', [ownerId]);
+    const [animals] = await pool.query('SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC', [parseInt(ownerId, 10)]);
     res.json({ success: true, animals });
   } catch (err) {
     console.error('Get owner animals error:', err);
@@ -513,6 +514,7 @@ app.get('/api/owner/animals/:ownerId', async (req, res) => {
 // Link Animal by Microchip
 app.post('/api/owner/animals/link', async (req, res) => {
   const { ownerId, microchip } = req.body;
+  const parsedOwnerId = parseInt(ownerId, 10);
   try {
     const [animals] = await pool.query('SELECT * FROM animals WHERE microchip = ?', [microchip]);
     if (animals.length === 0) {
@@ -521,14 +523,14 @@ app.post('/api/owner/animals/link', async (req, res) => {
 
     const animal = animals[0];
     if (animal.handler_id) {
-      if (animal.handler_id == ownerId) {
+      if (animal.handler_id == parsedOwnerId) {
         return res.status(400).json({ success: false, error: 'This animal is already linked to your profile.' });
       }
       return res.status(400).json({ success: false, error: 'This animal is already registered to another handler.' });
     }
 
-    await pool.query('UPDATE animals SET handler_id = ? WHERE id = ?', [ownerId, animal.id]);
-    await logActivity('animal_link', `Linked animal ${animal.name} (Microchip: ${microchip}) to owner ID ${ownerId}`, ownerId);
+    await pool.query('UPDATE animals SET handler_id = ? WHERE id = ?', [parsedOwnerId, animal.id]);
+    await logActivity('animal_link', `Linked animal ${animal.name} (Microchip: ${microchip}) to owner ID ${parsedOwnerId}`, parsedOwnerId);
 
     const [updatedAnimal] = await pool.query('SELECT * FROM animals WHERE id = ?', [animal.id]);
     res.json({ success: true, animal: updatedAnimal[0] });
@@ -594,16 +596,17 @@ app.post('/api/owner/travel', async (req, res) => {
 // Update Profile
 app.put('/api/owner/profile/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
+  const parsedOwnerId = parseInt(ownerId, 10);
   const { name, phone, residential_country, address } = req.body;
   try {
     await pool.query(
       'UPDATE users SET name = ?, phone = ?, residential_country = ?, address = ? WHERE id = ?',
-      [name, phone, residential_country, address, ownerId]
+      [name, phone, residential_country, address, parsedOwnerId]
     );
     
-    await logActivity('profile_update', `Updated profile information for user ID ${ownerId}`, ownerId);
+    await logActivity('profile_update', `Updated profile information for user ID ${parsedOwnerId}`, parsedOwnerId);
 
-    const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [ownerId]);
+    const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [parsedOwnerId]);
     res.json({ success: true, user: updated[0] });
   } catch (err) {
     console.error('Update profile error:', err);
@@ -614,9 +617,10 @@ app.put('/api/owner/profile/:ownerId', async (req, res) => {
 // Update Password
 app.put('/api/owner/password/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
+  const parsedOwnerId = parseInt(ownerId, 10);
   const { currentPassword, newPassword } = req.body;
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [ownerId]);
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [parsedOwnerId]);
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }
@@ -625,7 +629,7 @@ app.put('/api/owner/password/:ownerId', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Incorrect current password.' });
     }
 
-    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, ownerId]);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parsedOwnerId]);
     await logActivity('password_change', `Changed password for user ID ${ownerId}`, ownerId);
 
     res.json({ success: true });
@@ -723,7 +727,7 @@ app.put('/api/admin/members/:id', async (req, res) => {
         data.name, data.region, data.country, data.status, data.contact, data.phone,
         data.website, data.assistance_dog_type, data.facility_type, data.disabilities_serviced,
         data.demographic_served, data.geographical_area, data.other_info, data.address, data.img || null,
-        id
+        parseInt(id, 10)
       ]
     );
     
@@ -786,10 +790,11 @@ app.get('/api/members', async (req, res) => {
 // Delete member program
 app.delete('/api/admin/members/:id', async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
   try {
-    const [members] = await pool.query('SELECT name FROM members WHERE id = ?', [id]);
+    const [members] = await pool.query('SELECT name FROM members WHERE id = ?', [parsedId]);
     if (members.length > 0) {
-      await pool.query('DELETE FROM members WHERE id = ?', [id]);
+      await pool.query('DELETE FROM members WHERE id = ?', [parsedId]);
       await logActivity('member_deletion', `Member Program '${members[0].name}' was removed from registry.`);
     }
     res.json({ success: true });
@@ -854,6 +859,7 @@ app.post('/api/admin/animals', async (req, res) => {
 // Admin edit service animal
 app.put('/api/admin/animals/:db_id', async (req, res) => {
   const { db_id } = req.params;
+  const parsedDbId = parseInt(db_id, 10);
   const data = req.body;
   try {
     const petPhotoUrl = await saveBase64Image(data.img);
@@ -862,7 +868,7 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
     const docIdUrl = await saveBase64File(data.doc_id, 'id_doc');
     const docOtherUrl = await saveBase64File(data.doc_other, 'other_doc');
 
-    const [existing] = await pool.query('SELECT img, doc_attestation, doc_certificate, doc_id, doc_other FROM animals WHERE id = ?', [db_id]);
+    const [existing] = await pool.query('SELECT img, doc_attestation, doc_certificate, doc_id, doc_other FROM animals WHERE id = ?', [parsedDbId]);
     const finalPhotoUrl = petPhotoUrl || (existing.length > 0 ? existing[0].img : null);
     const finalAttestationUrl = docAttestationUrl || (existing.length > 0 ? existing[0].doc_attestation : null);
     const finalCertificateUrl = docCertificateUrl || (existing.length > 0 ? existing[0].doc_certificate : null);
@@ -881,7 +887,7 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
         data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type,
         data.facility_name, data.trainer_name, data.trained_task, data.completion_date || null, data.handler_id || null, data.status,
         finalPhotoUrl, finalAttestationUrl, finalCertificateUrl, finalIdUrl, finalOtherUrl,
-        db_id
+        parsedDbId
       ]
     );
 
@@ -897,12 +903,13 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
 // Admin delete service animal
 app.delete('/api/admin/animals/:db_id', async (req, res) => {
   const { db_id } = req.params;
+  const parsedDbId = parseInt(db_id, 10);
   try {
     // Get animal name first for logging
-    const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [db_id]);
+    const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [parsedDbId]);
     const name = animals.length > 0 ? animals[0].name : 'Unknown';
 
-    await pool.query('DELETE FROM animals WHERE id = ?', [db_id]);
+    await pool.query('DELETE FROM animals WHERE id = ?', [parsedDbId]);
 
     await logActivity('animal_deletion', `Admin deleted service animal ${name} (DB ID: ${db_id})`);
 
@@ -959,6 +966,7 @@ app.post('/api/admin/owners', async (req, res) => {
 // Admin edit owner details
 app.put('/api/admin/owners/:id', async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
   const { name, email, phone, residential_country, address, status, id_type, id_last4, id_doc } = req.body;
   try {
     // Save base64 ID document if provided
@@ -969,7 +977,7 @@ app.put('/api/admin/owners/:id', async (req, res) => {
         name = ?, email = ?, phone = ?, residential_country = ?, address = ?, status = ?,
         id_type = ?, id_last4 = ?, id_doc = COALESCE(?, id_doc)
       WHERE id = ? AND role = 'owner'`,
-      [name, email, phone, residential_country, address, status, id_type || null, id_last4 || null, idDocUrl, id]
+      [name, email, phone, residential_country, address, status, id_type || null, id_last4 || null, idDocUrl, parsedId]
     );
 
     await logActivity('user_update', `Admin updated owner ${name} (User ID: ${id})`);
@@ -984,15 +992,16 @@ app.put('/api/admin/owners/:id', async (req, res) => {
 // Admin issue credentials/update password for existing owner
 app.put('/api/admin/owners/:id/credentials', async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
   const { password } = req.body;
   try {
     if (!password || password.length < 6) {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
     }
 
-    await pool.query("UPDATE users SET password = ? WHERE id = ? AND role = 'owner'", [password, id]);
+    await pool.query("UPDATE users SET password = ? WHERE id = ? AND role = 'owner'", [password, parsedId]);
 
-    const [[owner]] = await pool.query('SELECT name FROM users WHERE id = ?', [id]);
+    const [[owner]] = await pool.query('SELECT name FROM users WHERE id = ?', [parsedId]);
     await logActivity('user_onboarding', `Issued new credentials/password for owner ${owner ? owner.name : 'ID ' + id}`);
 
     res.json({ success: true });
@@ -1005,15 +1014,16 @@ app.put('/api/admin/owners/:id/credentials', async (req, res) => {
 // Admin delete owner
 app.delete('/api/admin/owners/:id', async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
   try {
     // Get owner name first for logging
-    const [users] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'owner'", [id]);
+    const [users] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'owner'", [parsedId]);
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'Owner not found.' });
     }
     const name = users[0].name;
 
-    await pool.query("DELETE FROM users WHERE id = ? AND role = 'owner'", [id]);
+    await pool.query("DELETE FROM users WHERE id = ? AND role = 'owner'", [parsedId]);
 
     await logActivity('user_deletion', `Admin deleted owner ${name} (User ID: ${id})`);
 
@@ -1028,7 +1038,7 @@ app.delete('/api/admin/owners/:id', async (req, res) => {
 app.get('/api/admin/owners/:id/animals', async (req, res) => {
   const { id } = req.params;
   try {
-    const [animals] = await pool.query("SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC", [id]);
+    const [animals] = await pool.query("SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC", [parseInt(id, 10)]);
     res.json({ success: true, animals });
   } catch (err) {
     console.error('Get owner animals error:', err);
@@ -1086,7 +1096,7 @@ app.put('/api/admin/travel/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   // Parse numeric ID out of "AIR-X"
-  const cleanId = id.replace('AIR-', '');
+  const cleanId = parseInt(id.replace('AIR-', ''), 10);
   try {
     const mappedStatus = status === 'Verified' ? 'Approved' : 'Rejected';
     await pool.query('UPDATE travel_requests SET status = ? WHERE id = ?', [mappedStatus, cleanId]);
@@ -1105,12 +1115,13 @@ app.put('/api/admin/travel/:id', async (req, res) => {
 // Admin approve/reject application
 app.put('/api/admin/applications/:id', async (req, res) => {
   const { id } = req.params;
+  const parsedId = parseInt(id, 10);
   const { status } = req.body;
   try {
-    await pool.query('UPDATE applications SET status = ? WHERE id = ?', [status, id]);
+    await pool.query('UPDATE applications SET status = ? WHERE id = ?', [status, parsedId]);
     
     // Retrieve application info to onboarding owner and register pet on approval
-    const [apps] = await pool.query('SELECT * FROM applications WHERE id = ?', [id]);
+    const [apps] = await pool.query('SELECT * FROM applications WHERE id = ?', [parsedId]);
     if (apps.length > 0) {
       const appData = apps[0];
       await logActivity('application_update', `Application ID ${id} for ${appData.pet_name} was ${status}`);
@@ -1204,7 +1215,7 @@ app.get('/api/admin/notifications', async (req, res) => {
 app.get('/api/admin/applications/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    const [apps] = await pool.query("SELECT * FROM applications WHERE id = ?", [id]);
+    const [apps] = await pool.query("SELECT * FROM applications WHERE id = ?", [parseInt(id, 10)]);
     if (apps.length === 0) {
       return res.status(404).json({ success: false, error: 'Application not found.' });
     }
@@ -1218,7 +1229,7 @@ app.get('/api/admin/applications/:id', async (req, res) => {
 // Get single travel request by ID
 app.get('/api/admin/travel/:id', async (req, res) => {
   const { id } = req.params;
-  const cleanId = id.replace('AIR-', '');
+  const cleanId = parseInt(id.replace('AIR-', ''), 10);
   try {
     const [requests] = await pool.query(`
       SELECT t.*, u.name AS handler, u.email AS email, a.name AS pet_name, a.breed AS pet_breed,
@@ -1260,9 +1271,10 @@ app.get('/api/admin/travel/:id', async (req, res) => {
 // Update Admin Password
 app.put('/api/admin/password/:userId', async (req, res) => {
   const { userId } = req.params;
+  const parsedUserId = parseInt(userId, 10);
   const { currentPassword, newPassword } = req.body;
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [userId, 'admin']);
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parsedUserId, 'admin']);
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'Admin user not found.' });
     }
