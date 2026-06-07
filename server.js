@@ -1,5 +1,5 @@
 import express from 'express';
-import mysql from 'mysql2/promise';
+import pg from 'pg';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,19 +14,75 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Create connection pool
-const dbConfig = {
-  host: process.env.DB_HOST || '127.0.0.1',
-  port: parseInt(process.env.DB_PORT || '3306', 10),
-  user: process.env.DB_USER || 'u727344629_adinapet',
-  password: process.env.DB_PASSWORD || 'Jz10191019@@',
-  database: process.env.DB_NAME || 'u727344629_adinapet',
-  connectionLimit: 10,
-  multipleStatements: true
-};
+// Create PostgreSQL connection pool
+const encodedPassword = encodeURIComponent(process.env.DB_PASSWORD || '76TQGdB8QET$/Mb');
+const connectionString = process.env.DATABASE_URL || 
+  `postgres://${process.env.DB_USER || 'postgres'}:${encodedPassword}@${process.env.DB_HOST || 'aws-1-us-east-2.pooler.supabase.com'}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'postgres'}`;
 
-// Create connection pool
-const pool = mysql.createPool(dbConfig);
+const sslEnabled = process.env.DB_SSL !== 'false';
+
+const pgPool = new pg.Pool({
+  connectionString,
+  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+  max: 10
+});
+
+// A helper to convert MySQL query to PostgreSQL query (replacing ? with $1, $2...)
+function mysqlToPostgresQuery(sql, params = []) {
+  let index = 1;
+  let postgresSql = sql.replace(/\?/g, () => `$${index++}`);
+  
+  // If it's an INSERT, append RETURNING id
+  const trimmed = postgresSql.trim();
+  const isInsert = trimmed.match(/^insert\s+into/i);
+  if (isInsert && !trimmed.match(/returning/i)) {
+    postgresSql = `${trimmed} RETURNING id`;
+  }
+  
+  return { query: postgresSql, values: params };
+}
+
+// Wrapper to mimic mysql2/promise Pool behavior
+const pool = {
+  async query(sql, params) {
+    const { query, values } = mysqlToPostgresQuery(sql, params);
+    try {
+      const res = await pgPool.query(query, values);
+      let resultMeta = { affectedRows: res.rowCount };
+      if (res.rows && res.rows.length > 0 && res.rows[0].id !== undefined) {
+        resultMeta.insertId = res.rows[0].id;
+      }
+      const isInsert = sql.trim().match(/^insert\s+into/i);
+      return [isInsert ? resultMeta : res.rows, res.fields];
+    } catch (err) {
+      console.error('Database query error:', err.message, '\nSQL:', query);
+      throw err;
+    }
+  },
+  async getConnection() {
+    const client = await pgPool.connect();
+    return {
+      async query(sql, params) {
+        const { query, values } = mysqlToPostgresQuery(sql, params);
+        try {
+          const res = await client.query(query, values);
+          let resultMeta = { affectedRows: res.rowCount };
+          if (res.rows && res.rows.length > 0 && res.rows[0].id !== undefined) {
+            resultMeta.insertId = res.rows[0].id;
+          }
+          const isInsert = sql.trim().match(/^insert\s+into/i);
+          return [isInsert ? resultMeta : res.rows, res.fields];
+        } catch (err) {
+          console.error('Database transaction query error:', err.message, '\nSQL:', query);
+          throw err;
+        }
+      },
+      release() {
+        client.release();
+      }
+    };
+  }
+};
 
 // Helper to log activities
 async function logActivity(type, description, userId = null) {
@@ -90,63 +146,81 @@ async function saveBase64Image(base64Str) {
 (async () => {
   try {
     const conn = await pool.getConnection();
-    console.log('Successfully connected to Hostinger MySQL Database.');
+    console.log('Successfully connected to Supabase PostgreSQL Database.');
     
     // Check if the database is initialized
-    const [tables] = await conn.query("SHOW TABLES LIKE 'users'");
+    const [tables] = await conn.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
+    );
     if (tables.length === 0) {
-      console.log('Database tables not found. Initializing schema from schema.sql...');
-      const sqlPath = path.join(__dirname, 'schema.sql');
+      console.log('Database tables not found. Initializing schema from schema_postgres.sql...');
+      const sqlPath = path.join(__dirname, 'schema_postgres.sql');
       if (fs.existsSync(sqlPath)) {
         const sql = fs.readFileSync(sqlPath, 'utf8');
         await conn.query(sql);
         console.log('Database schema successfully initialized and seeded.');
       } else {
-        console.warn('schema.sql not found at ' + sqlPath);
+        console.warn('schema_postgres.sql not found at ' + sqlPath);
       }
     }
     
     // Auto-migrate applications table to add pet_photo column if not present
-    const [columns] = await conn.query("SHOW COLUMNS FROM applications LIKE 'pet_photo'");
+    const [columns] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'applications' AND column_name = 'pet_photo'"
+    );
     if (columns.length === 0) {
       await conn.query("ALTER TABLE applications ADD COLUMN pet_photo VARCHAR(500)");
       console.log("Added pet_photo column to applications table.");
     }
 
     // Auto-migrate animals table to add doc_attestation, doc_certificate, doc_id, and doc_other columns
-    const [docAttCols] = await conn.query("SHOW COLUMNS FROM animals LIKE 'doc_attestation'");
+    const [docAttCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_attestation'"
+    );
     if (docAttCols.length === 0) {
       await conn.query("ALTER TABLE animals ADD COLUMN doc_attestation VARCHAR(500)");
       console.log("Added doc_attestation column to animals table.");
     }
-    const [docCertCols] = await conn.query("SHOW COLUMNS FROM animals LIKE 'doc_certificate'");
+    const [docCertCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_certificate'"
+    );
     if (docCertCols.length === 0) {
       await conn.query("ALTER TABLE animals ADD COLUMN doc_certificate VARCHAR(500)");
       console.log("Added doc_certificate column to animals table.");
     }
-    const [docIdCols] = await conn.query("SHOW COLUMNS FROM animals LIKE 'doc_id'");
+    const [docIdCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_id'"
+    );
     if (docIdCols.length === 0) {
       await conn.query("ALTER TABLE animals ADD COLUMN doc_id VARCHAR(500)");
       console.log("Added doc_id column to animals table.");
     }
-    const [docOtherCols] = await conn.query("SHOW COLUMNS FROM animals LIKE 'doc_other'");
+    const [docOtherCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_other'"
+    );
     if (docOtherCols.length === 0) {
       await conn.query("ALTER TABLE animals ADD COLUMN doc_other VARCHAR(500)");
       console.log("Added doc_other column to animals table.");
     }
 
     // Auto-migrate users table to add id_type, id_last4, id_doc columns
-    const [idTypeCols] = await conn.query("SHOW COLUMNS FROM users LIKE 'id_type'");
+    const [idTypeCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_type'"
+    );
     if (idTypeCols.length === 0) {
       await conn.query("ALTER TABLE users ADD COLUMN id_type VARCHAR(50)");
       console.log("Added id_type column to users table.");
     }
-    const [idLast4Cols] = await conn.query("SHOW COLUMNS FROM users LIKE 'id_last4'");
+    const [idLast4Cols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_last4'"
+    );
     if (idLast4Cols.length === 0) {
       await conn.query("ALTER TABLE users ADD COLUMN id_last4 VARCHAR(4)");
       console.log("Added id_last4 column to users table.");
     }
-    const [idDocCols] = await conn.query("SHOW COLUMNS FROM users LIKE 'id_doc'");
+    const [idDocCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_doc'"
+    );
     if (idDocCols.length === 0) {
       await conn.query("ALTER TABLE users ADD COLUMN id_doc VARCHAR(500)");
       console.log("Added id_doc column to users table.");
@@ -155,7 +229,7 @@ async function saveBase64Image(base64Str) {
     // Create members table if not exists
     await conn.query(`
       CREATE TABLE IF NOT EXISTS members (
-        id INT AUTO_INCREMENT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         registry_id VARCHAR(50) NOT NULL UNIQUE,
         region VARCHAR(100),
@@ -177,17 +251,19 @@ async function saveBase64Image(base64Str) {
     `);
 
     // Check and add address column to members table if not exists
-    const [addressCols] = await conn.query("SHOW COLUMNS FROM members LIKE 'address'");
+    const [addressCols] = await conn.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'members' AND column_name = 'address'"
+    );
     if (addressCols.length === 0) {
       await conn.query("ALTER TABLE members ADD COLUMN address TEXT");
       console.log("Added address column to members table.");
     }
 
     // Alter demographic_served size to support long strings
-    await conn.query("ALTER TABLE members MODIFY COLUMN demographic_served VARCHAR(500)");
+    await conn.query("ALTER TABLE members ALTER COLUMN demographic_served TYPE VARCHAR(500)");
     
     const [countRes] = await conn.query("SELECT COUNT(*) as count FROM members");
-    if (countRes[0].count === 0) {
+    if (parseInt(countRes[0].count || '0', 10) === 0) {
       await conn.query(`
         INSERT INTO members (name, registry_id, region, country, status, contact, phone, last_audit, img, website, assistance_dog_type, facility_type, disabilities_serviced, demographic_served, geographical_area, other_info, address) VALUES
         ('Assistance Dogs Australia', 'ADI-20932', 'Asia Pacific', 'Australia', 'Active', 'Sarah Jennings', '+61 2 9876 5432', 'Oct 12, 2023', 'https://images.unsplash.com/photo-1544568100-847a948585b9?auto=format&fit=crop&q=80&w=100', 'https://www.assistancedogsaustralia.org.au', 'Service, Hearing, Autism', 'Non-Profit', 'Visual, Hearing, Mobility, Autism', 'All Age', 'National', 'Assistance Dogs Australia trains and places unique dogs with people who have disabilities to provide physical and emotional support.', '123 Innovation Way, Sydney, NSW, Australia'),
@@ -467,7 +543,7 @@ app.get('/api/owner/travel/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
   try {
     const [requests] = await pool.query(
-      `SELECT t.*, a.name AS animalName, DATE_FORMAT(t.travel_date, '%Y-%m-%d') AS travelDate, DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS submittedAt 
+      `SELECT t.*, a.name AS animalName, TO_CHAR(t.travel_date, 'YYYY-MM-DD') AS travelDate, TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS submittedAt 
        FROM travel_requests t 
        JOIN animals a ON t.animal_id = a.id 
        WHERE t.owner_id = ? 
@@ -976,8 +1052,8 @@ app.get('/api/admin/travel', async (req, res) => {
   try {
     const [requests] = await pool.query(`
       SELECT t.*, u.name AS handler, u.email AS email, a.name AS pet_name, a.breed AS pet_breed,
-             DATE_FORMAT(t.travel_date, '%b %d, %Y') AS departureDate,
-             DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS date,
+             TO_CHAR(t.travel_date, 'Mon DD, YYYY') AS departureDate,
+             TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS date,
              t.flight_number AS flight, t.confirmation_number AS ticketNumber,
              t.route AS detail, t.status AS status, t.id AS id
       FROM travel_requests t
@@ -1089,7 +1165,7 @@ app.put('/api/admin/applications/:id', async (req, res) => {
 app.get('/api/admin/activities', async (req, res) => {
   try {
     const [activities] = await pool.query(
-      `SELECT a.*, a.type AS action, a.description AS details, DATE_FORMAT(a.created_at, '%b %d, %Y %h:%i %p') as formatted_date
+      `SELECT a.*, a.type AS action, a.description AS details, TO_CHAR(a.created_at, 'Mon DD, YYYY HH12:MI AM') as formatted_date
        FROM activities a 
        ORDER BY a.id DESC 
        LIMIT 50`
@@ -1146,8 +1222,8 @@ app.get('/api/admin/travel/:id', async (req, res) => {
   try {
     const [requests] = await pool.query(`
       SELECT t.*, u.name AS handler, u.email AS email, a.name AS pet_name, a.breed AS pet_breed,
-             DATE_FORMAT(t.travel_date, '%b %d, %Y') AS departureDate,
-             DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS date,
+             TO_CHAR(t.travel_date, 'Mon DD, YYYY') AS departureDate,
+             TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS date,
              t.flight_number AS flight, t.confirmation_number AS ticketNumber,
              t.route AS detail, t.status AS status, t.id AS id
       FROM travel_requests t
