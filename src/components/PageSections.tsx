@@ -8464,15 +8464,14 @@ export const LoginForm = ({ onLoginSuccess, onRegisterClick }: { onLoginSuccess?
                 <span className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest select-none">Remember me</span>
               </div>
 
-              <Button 
-                variant="primary" 
+              <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-5 rounded-2xl text-lg shadow-xl shadow-brand-primary/10 group disabled:opacity-50"
+                className="w-full py-5 rounded-2xl text-lg shadow-xl shadow-brand-primary/10 group disabled:opacity-50 bg-brand-primary text-white hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2"
               >
                 {isLoading ? 'Signing In...' : activeTab === 'owner' ? 'Sign In' : 'Admin Portal Login'}
                 {!isLoading && <ArrowRight className="w-6 h-6 transition-transform group-hover:translate-x-1" />}
-              </Button>
+              </button>
             </form>
 
             <div className="mt-10 pt-8 border-t border-brand-primary/5 text-center">
