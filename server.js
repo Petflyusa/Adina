@@ -1,5 +1,5 @@
 import express from 'express';
-import pg from 'pg';
+import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,102 +14,18 @@ const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Create PostgreSQL connection pool
-const encodedPassword = encodeURIComponent(process.env.DB_PASSWORD || '76TQGdB8QET$/Mb');
-const connectionString = process.env.DATABASE_URL || 
-  `postgres://${process.env.DB_USER || 'postgres'}:${encodedPassword}@${process.env.DB_HOST || 'aws-1-us-east-2.pooler.supabase.com'}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'postgres'}`;
-
-const sslEnabled = process.env.DB_SSL !== 'false';
-
-const pgPool = new pg.Pool({
-  connectionString,
-  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
-  max: 10
+// Create MySQL connection pool using Hostinger MySQL
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || 'srv1134.hstgr.io',
+  port: parseInt(process.env.DB_PORT || '3306', 10),
+  user: process.env.DB_USER || 'u884869254_adina',
+  password: process.env.DB_PASSWORD || 'Jz10191019@@',
+  database: process.env.DB_NAME || 'u884869254_adina',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0,
+  namedPlaceholders: false
 });
-
-// A helper to convert MySQL query to PostgreSQL query (replacing ? with $1, $2...)
-function mysqlToPostgresQuery(sql, params = []) {
-  let postgresSql = '';
-  let inSingleQuote = false;
-  let inDoubleQuote = false;
-  let inBacktick = false;
-  let paramIndex = 1;
-
-  for (let i = 0; i < sql.length; i++) {
-    const char = sql[i];
-    if (char === "'" && sql[i - 1] !== '\\') {
-      if (!inDoubleQuote && !inBacktick) {
-        inSingleQuote = !inSingleQuote;
-      }
-      postgresSql += char;
-    } else if (char === '"' && sql[i - 1] !== '\\') {
-      if (!inSingleQuote && !inBacktick) {
-        inDoubleQuote = !inDoubleQuote;
-      }
-      postgresSql += char;
-    } else if (char === '`' && sql[i - 1] !== '\\') {
-      if (!inSingleQuote && !inDoubleQuote) {
-        inBacktick = !inBacktick;
-      }
-      postgresSql += char;
-    } else if (char === '?' && !inSingleQuote && !inDoubleQuote && !inBacktick) {
-      postgresSql += `$${paramIndex++}`;
-    } else {
-      postgresSql += char;
-    }
-  }
-
-  // If it's an INSERT, append RETURNING id
-  const trimmed = postgresSql.trim();
-  const isInsert = trimmed.match(/^insert\s+into/i);
-  if (isInsert && !trimmed.match(/returning/i)) {
-    postgresSql = `${trimmed} RETURNING id`;
-  }
-  
-  return { query: postgresSql, values: params };
-}
-
-// Wrapper to mimic mysql2/promise Pool behavior
-const pool = {
-  async query(sql, params) {
-    const { query, values } = mysqlToPostgresQuery(sql, params);
-    try {
-      const res = await pgPool.query(query, values);
-      let resultMeta = { affectedRows: res.rowCount };
-      if (res.rows && res.rows.length > 0 && res.rows[0].id !== undefined) {
-        resultMeta.insertId = res.rows[0].id;
-      }
-      const isInsert = sql.trim().match(/^insert\s+into/i);
-      return [isInsert ? resultMeta : res.rows, res.fields];
-    } catch (err) {
-      console.error('Database query error:', err.message, '\nSQL:', query);
-      throw err;
-    }
-  },
-  async getConnection() {
-    const client = await pgPool.connect();
-    return {
-      async query(sql, params) {
-        const { query, values } = mysqlToPostgresQuery(sql, params);
-        try {
-          const res = await client.query(query, values);
-          let resultMeta = { affectedRows: res.rowCount };
-          if (res.rows && res.rows.length > 0 && res.rows[0].id !== undefined) {
-            resultMeta.insertId = res.rows[0].id;
-          }
-          const isInsert = sql.trim().match(/^insert\s+into/i);
-          return [isInsert ? resultMeta : res.rows, res.fields];
-        } catch (err) {
-          console.error('Database transaction query error:', err.message, '\nSQL:', query);
-          throw err;
-        }
-      },
-      release() {
-        client.release();
-      }
-    };
-  }
-};
 
 // Helper to log activities
 async function logActivity(type, description, userId = null) {
@@ -126,7 +42,7 @@ async function logActivity(type, description, userId = null) {
 
 async function saveBase64File(base64Str, prefix = 'doc') {
   if (!base64Str || !base64Str.startsWith('data:')) {
-    return base64Str; // Return as-is if it's already a URL or empty
+    return base64Str;
   }
 
   try {
@@ -135,7 +51,7 @@ async function saveBase64File(base64Str, prefix = 'doc') {
       return null;
     }
 
-    const mimeType = matches[1]; // e.g. "image/png" or "application/pdf"
+    const mimeType = matches[1];
     let extension = mimeType.split('/')[1] || 'bin';
     if (extension.includes('+')) extension = extension.split('+')[0];
     if (extension.includes('jpeg') || extension.includes('jpg')) {
@@ -148,9 +64,9 @@ async function saveBase64File(base64Str, prefix = 'doc') {
     const buffer = Buffer.from(base64Data, 'base64');
 
     const filename = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
-    
+
     const projectRef = 'tfiuayzwivtlnswgklhf';
-    const anonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmaXVheXp3aXZ0bG5zd2drbGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3OTkzNjgsImV4cCI6MjA5NjM3NTM2OH0.PM9XWV1wfDhC93S7ZW6TVqECrIQEO9KkV_XkWrNB1wU';
+    const anonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbG...B1wU';
 
     const uploadUrl = `https://${projectRef}.supabase.co/storage/v1/object/adina/${filename}`;
 
@@ -178,142 +94,46 @@ async function saveBase64File(base64Str, prefix = 'doc') {
   }
 }
 
-// Helper to save base64 image and return URL path
 async function saveBase64Image(base64Str) {
   return saveBase64File(base64Str, 'pet');
 }
 
-// Check database connection on startup
+// Check database connection on startup and initialize schema if needed
 (async () => {
   try {
     const conn = await pool.getConnection();
-    console.log('Successfully connected to Supabase PostgreSQL Database.');
-    
-    // Check if the database is initialized
+    console.log('Successfully connected to Hostinger MySQL Database.');
+
+    // Check if the database is initialized by looking for the users table
     const [tables] = await conn.query(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
+      "SHOW TABLES LIKE 'users'"
     );
     if (tables.length === 0) {
-      console.log('Database tables not found. Initializing schema from schema_postgres.sql...');
-      const sqlPath = path.join(__dirname, 'schema_postgres.sql');
+      console.log('Database tables not found. Initializing schema from schema.sql...');
+      const sqlPath = path.join(__dirname, 'schema.sql');
       if (fs.existsSync(sqlPath)) {
         const sql = fs.readFileSync(sqlPath, 'utf8');
-        await conn.query(sql);
-        console.log('Database schema successfully initialized and seeded.');
+        // Split by semicolon and execute each statement
+        const statements = sql.split(';').filter(s => s.trim());
+        for (const statement of statements) {
+          const trimmed = statement.trim();
+          if (trimmed) {
+            try {
+              await conn.query(trimmed);
+            } catch (err) {
+              // Ignore SET FOREIGN_KEY_CHECKS and some create table warnings
+              if (!err.message.includes('already exists')) {
+                console.error('SQL statement error:', err.message);
+              }
+            }
+          }
+        }
+        console.log('Database schema successfully initialized.');
       } else {
-        console.warn('schema_postgres.sql not found at ' + sqlPath);
+        console.warn('schema.sql not found at ' + sqlPath);
       }
     }
-    
-    // Auto-migrate applications table to add pet_photo column if not present
-    const [columns] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'applications' AND column_name = 'pet_photo'"
-    );
-    if (columns.length === 0) {
-      await conn.query("ALTER TABLE applications ADD COLUMN pet_photo VARCHAR(500)");
-      console.log("Added pet_photo column to applications table.");
-    }
 
-    // Auto-migrate animals table to add doc_attestation, doc_certificate, doc_id, and doc_other columns
-    const [docAttCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_attestation'"
-    );
-    if (docAttCols.length === 0) {
-      await conn.query("ALTER TABLE animals ADD COLUMN doc_attestation VARCHAR(500)");
-      console.log("Added doc_attestation column to animals table.");
-    }
-    const [docCertCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_certificate'"
-    );
-    if (docCertCols.length === 0) {
-      await conn.query("ALTER TABLE animals ADD COLUMN doc_certificate VARCHAR(500)");
-      console.log("Added doc_certificate column to animals table.");
-    }
-    const [docIdCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_id'"
-    );
-    if (docIdCols.length === 0) {
-      await conn.query("ALTER TABLE animals ADD COLUMN doc_id VARCHAR(500)");
-      console.log("Added doc_id column to animals table.");
-    }
-    const [docOtherCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'animals' AND column_name = 'doc_other'"
-    );
-    if (docOtherCols.length === 0) {
-      await conn.query("ALTER TABLE animals ADD COLUMN doc_other VARCHAR(500)");
-      console.log("Added doc_other column to animals table.");
-    }
-
-    // Auto-migrate users table to add id_type, id_last4, id_doc columns
-    const [idTypeCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_type'"
-    );
-    if (idTypeCols.length === 0) {
-      await conn.query("ALTER TABLE users ADD COLUMN id_type VARCHAR(50)");
-      console.log("Added id_type column to users table.");
-    }
-    const [idLast4Cols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_last4'"
-    );
-    if (idLast4Cols.length === 0) {
-      await conn.query("ALTER TABLE users ADD COLUMN id_last4 VARCHAR(4)");
-      console.log("Added id_last4 column to users table.");
-    }
-    const [idDocCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id_doc'"
-    );
-    if (idDocCols.length === 0) {
-      await conn.query("ALTER TABLE users ADD COLUMN id_doc VARCHAR(500)");
-      console.log("Added id_doc column to users table.");
-    }
-    
-    // Create members table if not exists
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS members (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        registry_id VARCHAR(50) NOT NULL UNIQUE,
-        region VARCHAR(100),
-        country VARCHAR(100),
-        status VARCHAR(50) DEFAULT 'Active',
-        contact VARCHAR(255),
-        phone VARCHAR(100),
-        last_audit VARCHAR(100),
-        img VARCHAR(500),
-        website VARCHAR(255),
-        assistance_dog_type VARCHAR(255),
-        facility_type VARCHAR(100),
-        disabilities_serviced VARCHAR(500),
-        demographic_served VARCHAR(500),
-        geographical_area VARCHAR(100),
-        other_info TEXT,
-        address TEXT
-      )
-    `);
-
-    // Check and add address column to members table if not exists
-    const [addressCols] = await conn.query(
-      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'members' AND column_name = 'address'"
-    );
-    if (addressCols.length === 0) {
-      await conn.query("ALTER TABLE members ADD COLUMN address TEXT");
-      console.log("Added address column to members table.");
-    }
-
-    // Alter demographic_served size to support long strings
-    await conn.query("ALTER TABLE members ALTER COLUMN demographic_served TYPE VARCHAR(500)");
-    
-    const [countRes] = await conn.query("SELECT COUNT(*) as count FROM members");
-    if (parseInt(countRes[0].count || '0', 10) === 0) {
-      await conn.query(`
-        INSERT INTO members (name, registry_id, region, country, status, contact, phone, last_audit, img, website, assistance_dog_type, facility_type, disabilities_serviced, demographic_served, geographical_area, other_info, address) VALUES
-        ('Assistance Dogs Australia', 'ADI-20932', 'Asia Pacific', 'Australia', 'Active', 'Sarah Jennings', '+61 2 9876 5432', 'Oct 12, 2023', 'https://images.unsplash.com/photo-1544568100-847a948585b9?auto=format&fit=crop&q=80&w=100', 'https://www.assistancedogsaustralia.org.au', 'Service, Hearing, Autism', 'Non-Profit', 'Visual, Hearing, Mobility, Autism', 'All Age', 'National', 'Assistance Dogs Australia trains and places unique dogs with people who have disabilities to provide physical and emotional support.', '123 Innovation Way, Sydney, NSW, Australia'),
-        ('Autism Assistance Dogs Ireland', 'ADI-11842', 'Europe', 'Ireland', 'Under Review', 'Liam O''Connor', '+353 21 432 1098', 'Jan 05, 2024', 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=100', 'https://www.autismassistancedogsireland.ie', 'Service, Autism', 'Non-Profit', 'Autism', 'Children', 'National', 'AADI trains dogs to provide safety, independence and companionship to children with autism and their families.', '45 Cork St, Cork, Ireland'),
-        ('Canine Companions', 'ADI-44091', 'North America', 'USA', 'Active', 'David Miller', '+1 707-577-1700', 'Nov 22, 2023', 'https://images.unsplash.com/photo-1537151608828-ea2b11777ee8?auto=format&fit=crop&q=80&w=100', 'https://canine.org', 'Service, Hearing, Facility', 'Non-Profit', 'Hearing, Mobility, Autism', 'All Age', 'National', 'Canine Companions is a non-profit organization that provides service dogs free of charge to adults, children and veterans with disabilities.', '244 California Ave, Santa Rosa, CA, USA')
-      `);
-      console.log("Seed members inserted.");
-    }
-    
     conn.release();
   } catch (err) {
     console.error('Database connection failed on startup:', err);
@@ -329,32 +149,16 @@ app.get('/api/test-db-connection', async (req, res) => {
     const conn = await pool.getConnection();
     const [rows] = await conn.query('SELECT 1 + 1 AS result');
     conn.release();
-    return res.json({ 
-      success: true, 
-      message: 'Successfully connected to database!', 
-      result: rows[0].result,
-      config: {
-        host: dbConfig.host,
-        port: dbConfig.port,
-        user: dbConfig.user,
-        database: dbConfig.database,
-        hasPassword: !!dbConfig.password
-      }
+    return res.json({
+      success: true,
+      message: 'Successfully connected to database!',
+      result: rows[0].result
     });
   } catch (err) {
-    return res.status(500).json({ 
-      success: false, 
+    return res.status(500).json({
+      success: false,
       error: err.message,
-      code: err.code,
-      errno: err.errno,
-      sqlState: err.sqlState,
-      config: {
-        host: dbConfig.host,
-        port: dbConfig.port,
-        user: dbConfig.user,
-        database: dbConfig.database,
-        hasPassword: !!dbConfig.password
-      }
+      code: err.code
     });
   }
 });
@@ -378,7 +182,6 @@ app.get('/api/verify/:microchip', async (req, res) => {
       }
     }
 
-    // Look up the training facility from the members program list
     let facilityMember = null;
     if (animal.facility_name) {
       const [members] = await pool.query('SELECT name, country, phone, website, contact, region FROM members WHERE name = ? LIMIT 1', [animal.facility_name]);
@@ -387,7 +190,6 @@ app.get('/api/verify/:microchip', async (req, res) => {
       }
     }
 
-    // Determine rabies status
     let rabiesStatus = 'Unknown';
     if (animal.rabies_expiration) {
       const exp = new Date(animal.rabies_expiration);
@@ -468,210 +270,285 @@ app.post('/api/applications', async (req, res) => {
       [
         data.handler_name, data.phone, data.email, data.country, data.address, data.id_type || 'Passport', data.id_last4,
         data.pet_name, data.pet_breed, data.pet_gender || 'Male', data.pet_weight, data.pet_microchip, data.pet_dob || null, data.pet_color,
-        data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type || '3-Year Vaccine',
+        data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type,
         data.facility_name, data.trainer_name, data.trained_task, data.completion_date || null,
-        petPhotoUrl
+        petPhotoUrl || null
       ]
     );
 
     await logActivity('application', `New application submitted for pet ${data.pet_name} by ${data.handler_name}`);
 
-    res.json({ success: true, id: result.insertId });
+    res.json({ success: true, applicationId: result.insertId });
   } catch (err) {
     console.error('Submit application error:', err);
     res.status(500).json({ success: false, error: 'Failed to submit application.' });
   }
 });
 
-// ==========================================
-// 2. AUTHENTICATION ENDPOINT
-// ==========================================
+// Public list of member programs
+app.get('/api/members', async (req, res) => {
+  try {
+    const [members] = await pool.query('SELECT * FROM members ORDER BY id DESC');
+    res.json({ success: true, members });
+  } catch (err) {
+    console.error('Get public members error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch member programs.' });
+  }
+});
 
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password, role } = req.body;
+// Public get owner info by registry ID
+app.get('/api/public/:registryId', async (req, res) => {
+  const { registryId } = req.params;
   try {
     const [users] = await pool.query(
-      'SELECT * FROM users WHERE LOWER(email) = LOWER(?) AND password = ? AND role = ?',
-      [email, password, role]
+      'SELECT id, name, registry_id, member_since, status, img, residential_country FROM users WHERE registry_id = ? AND role = ?',
+      [registryId, 'owner']
     );
-
     if (users.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid email, password or portal selection.' });
+      return res.status(404).json({ success: false, error: 'Registry not found.' });
     }
-
-    const user = users[0];
-    delete user.password; // Do not return password to frontend
-
-    await logActivity('auth', `${user.name} logged in successfully`, user.id);
-
-    res.json({ success: true, user });
+    res.json({ success: true, owner: users[0] });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ success: false, error: 'Authentication database check failed.' });
+    console.error('Get public owner error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch owner info.' });
   }
 });
 
 // ==========================================
-// 3. OWNER DASHBOARD ENDPOINTS
+// 2. AUTH ENDPOINTS
 // ==========================================
 
-// Owner Stats
-app.get('/api/owner/stats/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
-  const parsedOwnerId = parseInt(ownerId, 10);
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
   try {
-    const [[animalsCount]] = await pool.query('SELECT COUNT(*) AS total FROM animals WHERE handler_id = ?', [parsedOwnerId]);
-    const [[activeRequests]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Pending'", [parsedOwnerId]);
-    const [[certifiedCount]] = await pool.query("SELECT COUNT(*) AS total FROM animals WHERE handler_id = ? AND status = 'Certified'", [parsedOwnerId]);
-    const [[completedTrips]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Approved'", [parsedOwnerId]);
+    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    if (users.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    const user = users[0];
+    if (user.password !== password) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    await logActivity('auth', `${user.name} logged in successfully`, user.id);
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        registryId: user.registry_id,
+        memberSince: user.member_since,
+        img: user.img
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ success: false, error: 'Login failed.' });
+  }
+});
+
+// Register (owner self-registration)
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, password, phone, residential_country, address } = req.body;
+  try {
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, error: 'Email already registered.' });
+    }
+
+    const registry_id = `REG-${Math.floor(1000 + Math.random() * 9000)}`;
+    const member_since = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const img = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100';
+
+    const [result] = await pool.query(
+      `INSERT INTO users (email, password, name, phone, residential_country, address, role, registry_id, member_since, status, img)
+       VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?, 'Active', ?)`,
+      [email, password, name, phone || '', residential_country || '', address || '', registry_id, member_since, img]
+    );
+
+    await logActivity('user_onboarding', `New owner ${name} (Registry ID: ${registry_id}) registered`, result.insertId);
+
+    res.json({
+      success: true,
+      user: {
+        id: result.insertId,
+        name,
+        email,
+        role: 'owner',
+        registryId: registry_id,
+        memberSince: member_since
+      }
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ success: false, error: 'Registration failed.' });
+  }
+});
+
+// ==========================================
+// 3. OWNER ENDPOINTS
+// ==========================================
+
+// Get owner dashboard data
+app.get('/api/owner/dashboard/:ownerId', async (req, res) => {
+  const { ownerId } = req.params;
+  try {
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parseInt(ownerId, 10), 'owner']);
+    if (users.length === 0) {
+      return res.status(404).json({ success: false, error: 'Owner not found.' });
+    }
+    const user = users[0];
+
+    const [animals] = await pool.query('SELECT * FROM animals WHERE handler_id = ?', [parseInt(ownerId, 10)]);
+
+    const [[certifiedCount]] = await pool.query("SELECT COUNT(*) AS total FROM animals WHERE handler_id = ? AND status = 'Certified'", [parseInt(ownerId, 10)]);
+    const [[pendingCount]] = await pool.query("SELECT COUNT(*) AS total FROM applications WHERE email = ? AND status = 'Pending'", [user.email]);
+
+    const [activities] = await pool.query(
+      'SELECT * FROM activities WHERE user_id = ? ORDER BY id DESC LIMIT 10',
+      [parseInt(ownerId, 10)]
+    );
+
+    const [travelRequests] = await pool.query(
+      `SELECT t.*, a.name AS pet_name, a.breed AS pet_breed, a.img AS pet_img
+       FROM travel_requests t
+       JOIN animals a ON t.animal_id = a.id
+       WHERE t.owner_id = ?
+       ORDER BY t.id DESC LIMIT 5`,
+      [parseInt(ownerId, 10)]
+    );
 
     res.json({
       success: true,
       stats: {
-        registeredAnimals: String(animalsCount.total).padStart(2, '0'),
-        activeRequests: String(activeRequests.total).padStart(2, '0'),
-        certifications: String(certifiedCount.total).padStart(2, '0'),
-        tripsCompleted: String(completedTrips.total).padStart(2, '0')
+        registeredAnimals: String(certifiedCount.total),
+        pendingApplications: String(pendingCount.total),
+        travelRequests: String(travelRequests.length)
+      },
+      animals,
+      activities,
+      travelRequests,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        country: user.residential_country,
+        address: user.address,
+        registryId: user.registry_id,
+        memberSince: user.member_since,
+        img: user.img,
+        status: user.status,
+        role: user.role
       }
     });
   } catch (err) {
-    console.error('Get owner stats error:', err);
-    res.status(500).json({ success: false, error: 'Failed to fetch owner statistics.' });
+    console.error('Get owner dashboard error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch dashboard data.' });
   }
 });
 
-// Owner's Registered Animals
+// Get owner animals
 app.get('/api/owner/animals/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
   try {
-    const [animals] = await pool.query('SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC', [parseInt(ownerId, 10)]);
+    const [animals] = await pool.query(
+      "SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC",
+      [parseInt(ownerId, 10)]
+    );
     res.json({ success: true, animals });
   } catch (err) {
     console.error('Get owner animals error:', err);
-    res.status(500).json({ success: false, error: 'Failed to fetch registered animals.' });
+    res.status(500).json({ success: false, error: 'Failed to fetch animals.' });
   }
 });
 
-// Link Animal by Microchip
-app.post('/api/owner/animals/link', async (req, res) => {
-  const { ownerId, microchip } = req.body;
-  const parsedOwnerId = parseInt(ownerId, 10);
+// Get single animal by microchip for owner
+app.get('/api/owner/animal/:microchip/:ownerId', async (req, res) => {
+  const { microchip, ownerId } = req.params;
   try {
-    const [animals] = await pool.query('SELECT * FROM animals WHERE microchip = ?', [microchip]);
-    if (animals.length === 0) {
-      return res.status(404).json({ success: false, error: 'No certified record found for this microchip number.' });
-    }
-
-    const animal = animals[0];
-    if (animal.handler_id) {
-      if (animal.handler_id == parsedOwnerId) {
-        return res.status(400).json({ success: false, error: 'This animal is already linked to your profile.' });
-      }
-      return res.status(400).json({ success: false, error: 'This animal is already registered to another handler.' });
-    }
-
-    await pool.query('UPDATE animals SET handler_id = ? WHERE id = ?', [parsedOwnerId, animal.id]);
-    await logActivity('animal_link', `Linked animal ${animal.name} (Microchip: ${microchip}) to owner ID ${parsedOwnerId}`, parsedOwnerId);
-
-    const [updatedAnimal] = await pool.query('SELECT * FROM animals WHERE id = ?', [animal.id]);
-    res.json({ success: true, animal: updatedAnimal[0] });
-  } catch (err) {
-    console.error('Link animal error:', err);
-    res.status(500).json({ success: false, error: 'Failed to link animal.' });
-  }
-});
-
-// Owner's Travel Requests
-app.get('/api/owner/travel/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
-  try {
-    const [requests] = await pool.query(
-      `SELECT t.*, a.name AS animalName, TO_CHAR(t.travel_date, 'YYYY-MM-DD') AS travelDate, TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS submittedAt 
-       FROM travel_requests t 
-       JOIN animals a ON t.animal_id = a.id 
-       WHERE t.owner_id = ? 
-       ORDER BY t.id DESC`,
-      [ownerId]
+    const [animals] = await pool.query(
+      'SELECT * FROM animals WHERE microchip = ? AND handler_id = ?',
+      [microchip, parseInt(ownerId, 10)]
     );
-    res.json({ success: true, requests });
+    if (animals.length === 0) {
+      return res.status(404).json({ success: false, error: 'Animal not found or not registered to this owner.' });
+    }
+    res.json({ success: true, animal: animals[0] });
   } catch (err) {
-    console.error('Get owner travel requests error:', err);
-    res.status(500).json({ success: false, error: 'Failed to fetch travel requests.' });
+    console.error('Get owner animal error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch animal.' });
   }
 });
 
-// Submit Travel Request
-app.post('/api/owner/travel', async (req, res) => {
-  const { ownerId, animalId, travelDate, flightNumber, confirmationNumber, route } = req.body;
+// Submit travel request
+app.post('/api/travel', async (req, res) => {
+  const { owner_id, animal_id, travel_date, flight_number, confirmation_number, route } = req.body;
   try {
     const [result] = await pool.query(
-      `INSERT INTO travel_requests (owner_id, animal_id, travel_date, flight_number, confirmation_number, route, status) 
-       VALUES (?, ?, ?, ?, ?, ?, 'Pending')`,
-      [ownerId, animalId, travelDate, flightNumber, confirmationNumber, route]
+      'INSERT INTO travel_requests (owner_id, animal_id, travel_date, flight_number, confirmation_number, route, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [owner_id, animal_id, travel_date, flight_number, confirmation_number, route, 'Pending']
     );
 
-    const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [animalId]);
-    const animalName = animals.length > 0 ? animals[0].name : 'Unknown';
+    const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [animal_id]);
+    const petName = animals.length > 0 ? animals[0].name : 'Unknown';
 
-    await logActivity('travel_request', `Submitted travel request REQ-${result.insertId} for ${animalName}`, ownerId);
+    await logActivity('travel_request', `Travel request submitted for ${petName}`, owner_id);
 
-    res.json({
-      success: true,
-      request: {
-        id: `REQ-${result.insertId}`,
-        travelDate,
-        flightNumber,
-        confirmationNumber,
-        route,
-        animalId: animalName,
-        status: 'Pending',
-        submittedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      }
-    });
+    res.json({ success: true, requestId: result.insertId });
   } catch (err) {
     console.error('Submit travel request error:', err);
     res.status(500).json({ success: false, error: 'Failed to submit travel request.' });
   }
 });
 
-// Update Profile
+// Update profile
 app.put('/api/owner/profile/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
-  const parsedOwnerId = parseInt(ownerId, 10);
   const { name, phone, residential_country, address } = req.body;
   try {
-    await pool.query(
-      'UPDATE users SET name = ?, phone = ?, residential_country = ?, address = ? WHERE id = ?',
-      [name, phone, residential_country, address, parsedOwnerId]
-    );
-    
-    await logActivity('profile_update', `Updated profile information for user ID ${parsedOwnerId}`, parsedOwnerId);
+    const idDocUrl = req.body.id_doc && req.body.id_doc.startsWith('data:')
+      ? await saveBase64File(req.body.id_doc, 'id_doc')
+      : req.body.id_doc;
 
-    const [updated] = await pool.query('SELECT * FROM users WHERE id = ?', [parsedOwnerId]);
-    res.json({ success: true, user: updated[0] });
+    await pool.query(
+      `UPDATE users SET name = ?, phone = ?, residential_country = ?, address = ?,
+       id_type = COALESCE(?, id_type), id_last4 = COALESCE(?, id_last4),
+       id_doc = COALESCE(?, id_doc) WHERE id = ? AND role = 'owner'`,
+      [name, phone, residential_country, address, req.body.id_type || null, req.body.id_last4 || null, idDocUrl, parseInt(ownerId, 10)]
+    );
+
+    await logActivity('profile_update', `Owner ${name} updated their profile`, parseInt(ownerId, 10));
+
+    res.json({ success: true });
   } catch (err) {
     console.error('Update profile error:', err);
     res.status(500).json({ success: false, error: 'Failed to update profile.' });
   }
 });
 
-// Update Password
+// Update password
 app.put('/api/owner/password/:ownerId', async (req, res) => {
   const { ownerId } = req.params;
-  const parsedOwnerId = parseInt(ownerId, 10);
   const { currentPassword, newPassword } = req.body;
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE id = ?', [parsedOwnerId]);
+    const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parseInt(ownerId, 10), 'owner']);
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'User not found.' });
     }
+
     const user = users[0];
     if (user.password !== currentPassword) {
       return res.status(400).json({ success: false, error: 'Incorrect current password.' });
     }
 
-    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parsedOwnerId]);
-    await logActivity('password_change', `Changed password for user ID ${ownerId}`, ownerId);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parseInt(ownerId, 10)]);
+    await logActivity('password_change', `Changed password for user ID ${ownerId}`, parseInt(ownerId, 10));
 
     res.json({ success: true });
   } catch (err) {
@@ -729,7 +606,7 @@ app.post('/api/admin/members', async (req, res) => {
     const registry_id = `ADI-${Math.floor(10000 + Math.random() * 90000)}`;
     const last_audit = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
     const img = data.img || '';
-    
+
     const [result] = await pool.query(
       `INSERT INTO members (
         name, registry_id, region, country, status, contact, phone, last_audit, img,
@@ -744,8 +621,9 @@ app.post('/api/admin/members', async (req, res) => {
         data.geographical_area || 'National', data.other_info || '', data.address || ''
       ]
     );
-    
+
     await logActivity('member_addition', `New Member Program '${data.name}' (${registry_id}) was registered.`);
+
     res.json({ success: true, memberId: result.insertId });
   } catch (err) {
     console.error('Add member error:', err);
@@ -759,9 +637,9 @@ app.put('/api/admin/members/:id', async (req, res) => {
   const data = req.body;
   try {
     await pool.query(
-      `UPDATE members SET 
-        name = ?, region = ?, country = ?, status = ?, contact = ?, phone = ?, 
-        website = ?, assistance_dog_type = ?, facility_type = ?, disabilities_serviced = ?, 
+      `UPDATE members SET
+        name = ?, region = ?, country = ?, status = ?, contact = ?, phone = ?,
+        website = ?, assistance_dog_type = ?, facility_type = ?, disabilities_serviced = ?,
         demographic_served = ?, geographical_area = ?, other_info = ?, address = ?, img = ?
       WHERE id = ?`,
       [
@@ -771,8 +649,9 @@ app.put('/api/admin/members/:id', async (req, res) => {
         parseInt(id, 10)
       ]
     );
-    
+
     await logActivity('member_update', `Member Program '${data.name}' details were updated.`);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Edit member error:', err);
@@ -810,21 +689,11 @@ app.post('/api/admin/members/import', async (req, res) => {
     }
 
     await logActivity('member_import', `Imported ${members.length} member programs via CSV.`);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Import members error:', err);
     res.status(500).json({ success: false, error: 'Failed to import member programs.' });
-  }
-});
-
-// Public list of member programs
-app.get('/api/members', async (req, res) => {
-  try {
-    const [members] = await pool.query('SELECT * FROM members ORDER BY id DESC');
-    res.json({ success: true, members });
-  } catch (err) {
-    console.error('Get public members error:', err);
-    res.status(500).json({ success: false, error: 'Failed to fetch member programs.' });
   }
 });
 
@@ -850,8 +719,8 @@ app.get('/api/admin/animals', async (req, res) => {
   try {
     const [animals] = await pool.query(`
       SELECT a.*, u.name AS handler, a.id AS db_id, a.registry_id AS id
-      FROM animals a 
-      LEFT JOIN users u ON a.handler_id = u.id 
+      FROM animals a
+      LEFT JOIN users u ON a.handler_id = u.id
       ORDER BY a.id DESC
     `);
     res.json({ success: true, animals });
@@ -917,7 +786,7 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
     const finalOtherUrl = docOtherUrl || (existing.length > 0 ? existing[0].doc_other : null);
 
     await pool.query(
-      `UPDATE animals SET 
+      `UPDATE animals SET
         name = ?, breed = ?, gender = ?, weight = ?, microchip = ?, date_of_birth = ?, color = ?,
         rabies_expiration = ?, rabies_serial = ?, rabies_brand = ?, rabies_type = ?,
         facility_name = ?, trainer_name = ?, trained_task = ?, completion_date = ?, handler_id = ?, status = ?, img = ?,
@@ -946,7 +815,6 @@ app.delete('/api/admin/animals/:db_id', async (req, res) => {
   const { db_id } = req.params;
   const parsedDbId = parseInt(db_id, 10);
   try {
-    // Get animal name first for logging
     const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [parsedDbId]);
     const name = animals.length > 0 ? animals[0].name : 'Unknown';
 
@@ -1010,11 +878,12 @@ app.put('/api/admin/owners/:id', async (req, res) => {
   const parsedId = parseInt(id, 10);
   const { name, email, phone, residential_country, address, status, id_type, id_last4, id_doc } = req.body;
   try {
-    // Save base64 ID document if provided
-    const idDocUrl = id_doc && id_doc.startsWith('data:') ? await saveBase64File(id_doc, 'id_doc') : (id_doc || null);
+    const idDocUrl = id_doc && id_doc.startsWith('data:')
+      ? await saveBase64File(id_doc, 'id_doc')
+      : (id_doc || null);
 
     await pool.query(
-      `UPDATE users SET 
+      `UPDATE users SET
         name = ?, email = ?, phone = ?, residential_country = ?, address = ?, status = ?,
         id_type = ?, id_last4 = ?, id_doc = COALESCE(?, id_doc)
       WHERE id = ? AND role = 'owner'`,
@@ -1057,7 +926,6 @@ app.delete('/api/admin/owners/:id', async (req, res) => {
   const { id } = req.params;
   const parsedId = parseInt(id, 10);
   try {
-    // Get owner name first for logging
     const [users] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'owner'", [parsedId]);
     if (users.length === 0) {
       return res.status(404).json({ success: false, error: 'Owner not found.' });
@@ -1103,8 +971,8 @@ app.get('/api/admin/travel', async (req, res) => {
   try {
     const [requests] = await pool.query(`
       SELECT t.*, u.name AS handler, u.email AS email, a.name AS pet_name, a.breed AS pet_breed,
-             TO_CHAR(t.travel_date, 'Mon DD, YYYY') AS departureDate,
-             TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS date,
+             DATE_FORMAT(t.travel_date, '%b %d, %Y') AS departureDate,
+             DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS date,
              t.flight_number AS flight, t.confirmation_number AS ticketNumber,
              t.route AS detail, t.status AS status, t.id AS id
       FROM travel_requests t
@@ -1112,8 +980,7 @@ app.get('/api/admin/travel', async (req, res) => {
       JOIN animals a ON t.animal_id = a.id
       ORDER BY t.id DESC
     `);
-    
-    // Map database properties to what the frontend expects
+
     const formatted = requests.map(t => ({
       id: `AIR-${t.id}`,
       applicant: t.handler,
@@ -1124,7 +991,7 @@ app.get('/api/admin/travel', async (req, res) => {
       date: t.date,
       status: t.status === 'Pending' ? 'Pending' : t.status === 'Approved' ? 'Verified' : 'Rejected'
     }));
-    
+
     res.json({ success: true, requests: formatted });
   } catch (err) {
     console.error('Get admin travel requests error:', err);
@@ -1136,16 +1003,16 @@ app.get('/api/admin/travel', async (req, res) => {
 app.put('/api/admin/travel/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-  // Parse numeric ID out of "AIR-X"
   const cleanId = parseInt(id.replace('AIR-', ''), 10);
   try {
     const mappedStatus = status === 'Verified' ? 'Approved' : 'Rejected';
     await pool.query('UPDATE travel_requests SET status = ? WHERE id = ?', [mappedStatus, cleanId]);
-    
+
     const [reqs] = await pool.query('SELECT owner_id FROM travel_requests WHERE id = ?', [cleanId]);
     const ownerId = reqs.length > 0 ? reqs[0].owner_id : null;
-    
+
     await logActivity('travel_update', `Travel request AIR-${cleanId} was marked ${status}`, ownerId);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Update travel request error:', err);
@@ -1160,22 +1027,19 @@ app.put('/api/admin/applications/:id', async (req, res) => {
   const { status } = req.body;
   try {
     await pool.query('UPDATE applications SET status = ? WHERE id = ?', [status, parsedId]);
-    
-    // Retrieve application info to onboarding owner and register pet on approval
+
     const [apps] = await pool.query('SELECT * FROM applications WHERE id = ?', [parsedId]);
     if (apps.length > 0) {
       const appData = apps[0];
       await logActivity('application_update', `Application ID ${id} for ${appData.pet_name} was ${status}`);
 
       if (status === 'Approved') {
-        // Check if owner user exists
         let ownerId;
         const [users] = await pool.query("SELECT id FROM users WHERE email = ? AND role = 'owner'", [appData.email]);
-        
+
         if (users.length > 0) {
           ownerId = users[0].id;
         } else {
-          // Onboard new owner
           const registry_id = `REG-${Math.floor(1000 + Math.random() * 9000)}`;
           const member_since = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
           const [result] = await pool.query(
@@ -1187,7 +1051,6 @@ app.put('/api/admin/applications/:id', async (req, res) => {
           await logActivity('user_onboarding', `Auto-onboarded owner ${appData.handler_name} via Approved application`);
         }
 
-        // Register pet
         const animal_registry_id = `SAR-${Math.floor(1000 + Math.random() * 9000)}`;
         await pool.query(
           `INSERT INTO animals (
@@ -1217,9 +1080,9 @@ app.put('/api/admin/applications/:id', async (req, res) => {
 app.get('/api/admin/activities', async (req, res) => {
   try {
     const [activities] = await pool.query(
-      `SELECT a.*, a.type AS action, a.description AS details, TO_CHAR(a.created_at, 'Mon DD, YYYY HH12:MI AM') as formatted_date
-       FROM activities a 
-       ORDER BY a.id DESC 
+      `SELECT a.*, a.type AS action, a.description AS details, DATE_FORMAT(a.created_at, '%b %d, %Y %h:%i %p') as formatted_date
+       FROM activities a
+       ORDER BY a.id DESC
        LIMIT 50`
     );
     res.json({ success: true, activities });
@@ -1234,10 +1097,10 @@ app.get('/api/admin/notifications', async (req, res) => {
   try {
     const [apps] = await pool.query("SELECT id, handler_name AS title, 'general' AS type, created_at FROM applications WHERE status = 'Pending' ORDER BY id DESC");
     const [travel] = await pool.query(`
-      SELECT t.id, u.name AS title, 'airline' AS type, t.submitted_at AS created_at 
-      FROM travel_requests t 
-      JOIN users u ON t.owner_id = u.id 
-      WHERE t.status = 'Pending' 
+      SELECT t.id, u.name AS title, 'airline' AS type, t.submitted_at AS created_at
+      FROM travel_requests t
+      JOIN users u ON t.owner_id = u.id
+      WHERE t.status = 'Pending'
       ORDER BY t.id DESC
     `);
     const combined = [
@@ -1274,8 +1137,8 @@ app.get('/api/admin/travel/:id', async (req, res) => {
   try {
     const [requests] = await pool.query(`
       SELECT t.*, u.name AS handler, u.email AS email, a.name AS pet_name, a.breed AS pet_breed,
-             TO_CHAR(t.travel_date, 'Mon DD, YYYY') AS departureDate,
-             TO_CHAR(t.submitted_at, 'Mon DD, YYYY') AS date,
+             DATE_FORMAT(t.travel_date, '%b %d, %Y') AS departureDate,
+             DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS date,
              t.flight_number AS flight, t.confirmation_number AS ticketNumber,
              t.route AS detail, t.status AS status, t.id AS id
       FROM travel_requests t
@@ -1283,11 +1146,11 @@ app.get('/api/admin/travel/:id', async (req, res) => {
       JOIN animals a ON t.animal_id = a.id
       WHERE t.id = ?
     `, [cleanId]);
-    
+
     if (requests.length === 0) {
       return res.status(404).json({ success: false, error: 'Travel request not found.' });
     }
-    
+
     const t = requests[0];
     const formatted = {
       id: `AIR-${t.id}`,
@@ -1301,7 +1164,7 @@ app.get('/api/admin/travel/:id', async (req, res) => {
       date: t.date,
       status: t.status === 'Pending' ? 'Pending' : t.status === 'Approved' ? 'Verified' : 'Rejected'
     };
-    
+
     res.json({ success: true, request: formatted });
   } catch (err) {
     console.error('Get single travel request error:', err);
@@ -1323,8 +1186,8 @@ app.put('/api/admin/password/:userId', async (req, res) => {
     if (user.password !== currentPassword) {
       return res.status(400).json({ success: false, error: 'Incorrect current password.' });
     }
-    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, userId]);
-    await logActivity('password_change', `Admin updated password`, userId);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parsedUserId]);
+    await logActivity('password_change', `Admin updated password`, parsedUserId);
     res.json({ success: true });
   } catch (err) {
     console.error('Admin change password error:', err);
@@ -1335,7 +1198,6 @@ app.put('/api/admin/password/:userId', async (req, res) => {
 // ==========================================
 // 5. PRODUCTION ASSETS SERVICE
 // ==========================================
-// Serve the frontend app
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
