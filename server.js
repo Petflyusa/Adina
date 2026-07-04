@@ -40,6 +40,13 @@ async function logActivity(type, description, userId = null) {
   }
 }
 
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// File storage - local filesystem (Hostinger server)
 async function saveBase64File(base64Str, prefix = 'doc') {
   if (!base64Str || !base64Str.startsWith('data:')) {
     return base64Str;
@@ -64,32 +71,15 @@ async function saveBase64File(base64Str, prefix = 'doc') {
     const buffer = Buffer.from(base64Data, 'base64');
 
     const filename = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
+    const filepath = path.join(uploadsDir, filename);
 
-    const projectRef = 'tfiuayzwivtlnswgklhf';
-    const anonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbG...B1wU';
+    fs.writeFileSync(filepath, buffer);
 
-    const uploadUrl = `https://${projectRef}.supabase.co/storage/v1/object/adina/${filename}`;
-
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${anonKey}`,
-        'apikey': anonKey,
-        'Content-Type': mimeType
-      },
-      body: buffer
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Failed to upload file to Supabase Storage:', response.status, errText);
-      return null;
-    }
-
-    const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/adina/${filename}`;
+    // Return public URL path (served statically via /uploads route)
+    const publicUrl = `/uploads/${filename}`;
     return publicUrl;
   } catch (err) {
-    console.error('Failed to save base64 file:', err);
+    console.error('Failed to save file:', err);
     return null;
   }
 }
