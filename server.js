@@ -55,7 +55,7 @@ async function saveBase64File(base64Str, prefix = 'doc') {
   try {
     const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
     if (!matches || matches.length !== 3) {
-      return null;
+      return base64Str;
     }
 
     const mimeType = matches[1];
@@ -79,8 +79,9 @@ async function saveBase64File(base64Str, prefix = 'doc') {
     const publicUrl = `/uploads/${filename}`;
     return publicUrl;
   } catch (err) {
-    console.error('Failed to save file:', err);
-    return null;
+    console.error('Failed to write file to disk (serverless env?), storing base64 data URL directly:', err.message);
+    // Vercel serverless has ephemeral filesystem — fall back to storing the base64 data URL directly in the DB
+    return base64Str;
   }
 }
 
