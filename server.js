@@ -125,6 +125,17 @@ async function saveBase64Image(base64Str) {
       }
     }
 
+    // Ensure applications.id_doc column exists (migration for existing DBs)
+    try {
+      const [cols] = await conn.query("SHOW COLUMNS FROM applications LIKE 'id_doc'");
+      if (cols.length === 0) {
+        await conn.query("ALTER TABLE applications ADD COLUMN id_doc TEXT DEFAULT NULL AFTER id_last4");
+        console.log('Migration: added id_doc column to applications table.');
+      }
+    } catch (err) {
+      console.warn('Migration check for id_doc failed:', err.message);
+    }
+
     conn.release();
   } catch (err) {
     console.error('Database connection failed on startup:', err);
@@ -250,16 +261,17 @@ app.post('/api/applications', async (req, res) => {
   const data = req.body;
   try {
     const petPhotoUrl = await saveBase64Image(data.pet_photo);
+    const idDocUrl = await saveBase64File(data.id_doc, 'app_id_doc');
 
     const [result] = await pool.query(
       `INSERT INTO applications (
-        handler_name, phone, email, country, address, id_type, id_last4,
+        handler_name, phone, email, country, address, id_type, id_last4, id_doc,
         pet_name, pet_breed, pet_gender, pet_weight, pet_microchip, pet_dob, pet_color,
         rabies_expiration, rabies_serial, rabies_brand, rabies_type,
         facility_name, trainer_name, trained_task, completion_date, status, pet_photo
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)`,
       [
-        data.handler_name, data.phone, data.email, data.country, data.address, data.id_type || 'Passport', data.id_last4,
+        data.handler_name, data.phone, data.email, data.country, data.address, data.id_type || 'Passport', data.id_last4, idDocUrl,
         data.pet_name, data.pet_breed, data.pet_gender || 'Male', data.pet_weight, data.pet_microchip, data.pet_dob || null, data.pet_color,
         data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type,
         data.facility_name, data.trainer_name, data.trained_task, data.completion_date || null,
