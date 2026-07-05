@@ -7847,12 +7847,26 @@ export const ApplyForm = () => {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-xs font-bold text-brand-primary/40 uppercase tracking-widest">Upload Official ID</label>
-                  <div className="border-2 border-dashed border-brand-primary/10 rounded-2xl p-8 bg-brand-surface text-center hover:border-brand-primary transition-colors cursor-pointer group">
+                  <div className="relative border-2 border-dashed border-brand-primary/10 rounded-2xl p-8 bg-brand-surface text-center hover:border-brand-primary transition-colors cursor-pointer group">
                     <div className="w-12 h-12 bg-brand-primary/5 rounded-full flex items-center justify-center mx-auto mb-3 text-brand-primary/30 group-hover:text-brand-primary group-hover:scale-110 transition-all">
                       <ShieldCheck className="w-6 h-6" />
                     </div>
                     <p className="text-sm font-bold text-brand-primary/60">Drag and drop or click to upload ID scan</p>
                     <p className="text-[10px] text-brand-primary/30 uppercase mt-1 font-black">Supported: PDF, JPG, PNG (Max 5MB)</p>
+                    <input
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setFormData(prev => ({ ...prev, id_doc: reader.result as string }));
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
                   </div>
                 </div>
               </div>
