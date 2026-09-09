@@ -269,7 +269,7 @@ app.post('/api/applications', async (req, res) => {
         pet_name, pet_breed, pet_gender, pet_weight, pet_microchip, pet_dob, pet_color,
         rabies_expiration, rabies_serial, rabies_brand, rabies_type,
         facility_name, trainer_name, trained_task, completion_date, status, pet_photo
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending', ?)`,
       [
         data.handler_name, data.phone, data.email, data.country, data.address, data.id_type || 'Passport', data.id_last4, idDocUrl,
         data.pet_name, data.pet_breed, data.pet_gender || 'Male', data.pet_weight, data.pet_microchip, data.pet_dob || null, data.pet_color,
