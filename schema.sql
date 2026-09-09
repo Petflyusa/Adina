@@ -50,7 +50,7 @@ CREATE TABLE `animals` (
   `completion_date` date DEFAULT NULL,
   `handler_id` int(11) DEFAULT NULL,
   `status` varchar(50) DEFAULT 'Certified',
-  `img` varchar(500) DEFAULT NULL,
+  `img` mediumtext DEFAULT NULL,
   `doc_attestation` varchar(500) DEFAULT NULL,
   `doc_certificate` varchar(500) DEFAULT NULL,
   `doc_id` varchar(500) DEFAULT NULL,
@@ -117,7 +117,7 @@ CREATE TABLE `applications` (
   `completion_date` date DEFAULT NULL,
   `status` varchar(50) DEFAULT 'Pending',
   `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `pet_photo` varchar(500) DEFAULT NULL,
+  `pet_photo` mediumtext DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

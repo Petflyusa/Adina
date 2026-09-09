@@ -86,7 +86,10 @@ async function saveBase64File(base64Str, prefix = 'doc') {
 }
 
 async function saveBase64Image(base64Str) {
-  return saveBase64File(base64Str, 'pet');
+  // Pet photos must survive serverless instance replacement and server restarts.
+  // Keep the image data in the database instead of persisting only an ephemeral
+  // local `/uploads` path. Existing URL-based photos remain supported.
+  return base64Str;
 }
 
 // Check database connection on startup and initialize schema if needed
@@ -134,6 +137,17 @@ async function saveBase64Image(base64Str) {
       }
     } catch (err) {
       console.warn('Migration check for id_doc failed:', err.message);
+    }
+
+    // Base64 photos are larger than VARCHAR(500). MEDIUMTEXT also keeps them
+    // available after a serverless function or local uploads directory resets.
+    for (const table of ['animals', 'applications']) {
+      const column = table === 'animals' ? 'img' : 'pet_photo';
+      try {
+        await conn.query(`ALTER TABLE ${table} MODIFY COLUMN ${column} MEDIUMTEXT DEFAULT NULL`);
+      } catch (err) {
+        console.warn(`Migration check for ${table}.${column} failed:`, err.message);
+      }
     }
 
     conn.release();

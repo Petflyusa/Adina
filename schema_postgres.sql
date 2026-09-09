@@ -58,7 +58,7 @@ CREATE TABLE animals (
   completion_date date DEFAULT NULL,
   handler_id integer DEFAULT NULL,
   status varchar(50) DEFAULT 'Certified',
-  img varchar(500) DEFAULT NULL,
+  img text DEFAULT NULL,
   doc_attestation varchar(500) DEFAULT NULL,
   doc_certificate varchar(500) DEFAULT NULL,
   doc_id varchar(500) DEFAULT NULL,
@@ -122,7 +122,7 @@ CREATE TABLE applications (
   completion_date date DEFAULT NULL,
   status varchar(50) DEFAULT 'Pending',
   created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-  pet_photo varchar(500) DEFAULT NULL,
+  pet_photo text DEFAULT NULL,
   PRIMARY KEY (id)
 );
 
