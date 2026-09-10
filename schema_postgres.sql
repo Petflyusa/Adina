@@ -31,11 +31,11 @@ CREATE TABLE users (
 );
 
 INSERT INTO users (id, email, password, name, phone, residential_country, address, role, registry_id, member_since, status, img, id_type, id_last4, id_doc) VALUES
-(1, 'petflyusa@hotmail.com', 'Jz10191019@@', 'Registrar General', '+1 (555) 019-9911', 'United States', 'ADI Headquarters, Austin, TX', 'admin', 'REG-ADM-01', 'Jan 2021', 'Active', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100', NULL, NULL, NULL),
-(2, 'elena@example.com', 'elena123', 'Elena Rodriguez', '+1 (555) 234-5678', 'United States', '128 Pinecrest Ave, Austin, TX 78704', 'owner', 'REG-7721', 'Oct 2023', 'Active', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', NULL, NULL, NULL),
-(3, 'mark@example.com', 'mark123', 'Mark Thompson', '+1 (555) 987-6543', 'Canada', '456 Oak Dr, Toronto, ON M4B 1B3', 'owner', 'MB-THOM-11203', 'Feb 2024', 'Active', 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100', NULL, NULL, NULL),
-(4, 'sarah@example.com', 'sarah123', 'Sarah Jenkins', '+1 (555) 111-2222', 'United States', '789 Elms Way, Seattle, WA 98101', 'owner', 'REG-4402', 'Jun 2022', 'Active', 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100', NULL, NULL, NULL),
-(5, 'suisuiniannianrenbutong@gmail.com', 'pet123', 'Yilin Fu', '+393778381786', 'Italy', 'Corso San Lorenzo 34 Pescantina,Verona, IT', 'owner', 'REG-2290', 'May 2026', 'Active', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', 'Passport', '4124', NULL);
+(1, 'admin@example.invalid', '$2b$12$BvPaAQ5En3fDK32A2a981u78arc2XeXBd8ClUXTqI7Zvu61u8ipVW', 'Example Administrator', NULL, 'United States', NULL, 'admin', 'REG-ADM-01', 'Jan 2021', 'Active', NULL, NULL, NULL, NULL),
+(2, 'owner1@example.invalid', '$2b$12$BvPaAQ5En3fDK32A2a981u78arc2XeXBd8ClUXTqI7Zvu61u8ipVW', 'Example Owner One', NULL, 'United States', NULL, 'owner', 'REG-7721', 'Oct 2023', 'Active', NULL, NULL, NULL, NULL),
+(3, 'owner2@example.invalid', '$2b$12$BvPaAQ5En3fDK32A2a981u78arc2XeXBd8ClUXTqI7Zvu61u8ipVW', 'Example Owner Two', NULL, 'Canada', NULL, 'owner', 'REG-11203', 'Feb 2024', 'Active', NULL, NULL, NULL, NULL),
+(4, 'owner3@example.invalid', '$2b$12$BvPaAQ5En3fDK32A2a981u78arc2XeXBd8ClUXTqI7Zvu61u8ipVW', 'Example Owner Three', NULL, 'United States', NULL, 'owner', 'REG-4402', 'Jun 2022', 'Active', NULL, NULL, NULL, NULL),
+(5, 'owner4@example.invalid', '$2b$12$BvPaAQ5En3fDK32A2a981u78arc2XeXBd8ClUXTqI7Zvu61u8ipVW', 'Example Owner Four', NULL, 'Italy', NULL, 'owner', 'REG-2290', 'May 2026', 'Active', NULL, NULL, NULL, NULL);
 
 
 CREATE TABLE animals (
@@ -73,7 +73,7 @@ INSERT INTO animals (id, registry_id, name, breed, gender, weight, microchip, da
 (1, 'SAR-9921', 'Cooper', 'Golden Retriever', 'Male', '32kg', '985112000012345', '2021-05-14 16:00:00', 'Golden', '2027-08-19 16:00:00', 'RAB-9921A', 'Merial', '3-Year Vaccine', 'Austin Assistance Dogs Training Center', 'Sarah Jenkins', 'Mobility Assistance', '2023-10-09 16:00:00', 2, 'Certified', 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=400', NULL, NULL, NULL, NULL),
 (2, 'SAR-8842', 'Luna', 'German Shepherd', 'Female', '28kg', '985112000874551', '2022-02-09 16:00:00', 'Black & Tan', '2026-12-04 16:00:00', 'RAB-8842B', 'Zoetis', '3-Year Vaccine', 'Guardian Angels Medical Service Dogs', 'Mark Thompson', 'Seizure Alert', '2024-02-14 16:00:00', 3, 'Pending', 'https://images.unsplash.com/photo-1589941013453-ec89f33b5e95?auto=format&fit=crop&q=80&w=400', NULL, NULL, NULL, NULL),
 (3, 'SAR-5529', 'Bella', 'Border Collie', 'Female', '20kg', '9851120000459', '2020-10-31 16:00:00', 'Black & White', '2025-04-11 16:00:00', 'RAB-5529C', 'Boehringer', '1-Year Vaccine', 'Freedom Dogs Training Center', 'Robert Davis', 'PTSD Support', '2022-06-19 16:00:00', 2, 'Expired', 'https://images.unsplash.com/photo-1503256207526-0d5d80fa2f47?auto=format&fit=crop&q=80&w=400', NULL, NULL, NULL, NULL),
-(4, 'SAR-6652', 'Nei', 'Maltese', 'Male', '7Kgs', '380260059009139', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', '0000', '0000', '1-Year Vaccine', 'National Serivce Dogs', 'Ashley Hedge', 'Advanced Obedience, PTSD Service Animal, Medical Alert', '2026-01-19 16:00:00', 5, 'Certified', '/uploads/pet_1779409580263_31036.jpg', '/uploads/attestation_1779249137642_97635.pdf', '/uploads/certificate_1779249137647_87773.pdf', '/uploads/id_doc_1779249137651_57251.pdf', NULL);
+(4, 'SAR-6652', 'Example Dog', 'Maltese', 'Male', '7kg', '000000000000004', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', 'DEMO', 'Demo', '1-Year Vaccine', 'Example Training Center', 'Example Trainer', 'Mobility Assistance', '2026-01-19 16:00:00', 5, 'Certified', NULL, NULL, NULL, NULL, NULL);
 
 
 CREATE TABLE travel_requests (
@@ -127,7 +127,7 @@ CREATE TABLE applications (
 );
 
 INSERT INTO applications (id, handler_name, phone, email, country, address, id_type, id_last4, pet_name, pet_breed, pet_gender, pet_weight, pet_microchip, pet_dob, pet_color, rabies_expiration, rabies_serial, rabies_brand, rabies_type, facility_name, trainer_name, trained_task, completion_date, status, created_at, pet_photo) VALUES
-(1, 'Yilin Fu', '+393778381786', 'suisuiniannianrenbutong@gmail.com', 'Italy', 'Corso San Lorenzo 34 Pescantina,Verona, IT', 'Passport', '4124', 'Nei', 'Maltese', 'Male', '7Kgs', '380260059009139', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', '0000', '0000', '1-Year Vaccine', 'Austin Assistance Dogs Training Center', 'Sarah Jenkins', 'Mobility Assistance Dog', '2023-10-09 16:00:00', 'Approved', '2026-05-19 19:48:26', '/uploads/pet_1779248906250_49810.jpg');
+(1, 'Example Applicant', NULL, 'applicant@example.invalid', 'United States', NULL, 'Passport', '0000', 'Example Dog', 'Mixed Breed', 'Male', '20kg', '000000000000001', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', 'DEMO', 'Demo', '1-Year Vaccine', 'Example Training Center', 'Example Trainer', 'Mobility Assistance Dog', '2023-10-09 16:00:00', 'Approved', '2026-05-19 19:48:26', NULL);
 
 
 CREATE TABLE activities (
@@ -148,22 +148,22 @@ INSERT INTO activities (id, type, description, timestamp, user_id, created_at) V
 (4, 'auth', 'Mark Thompson logged in from IP 104.22.1.84', 'Yesterday', 3, '2026-05-19 19:37:49'),
 (5, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-19 19:38:32'),
 (6, 'travel_update', 'Travel request AIR-2 was marked Rejected', 'Just now', 2, '2026-05-19 19:39:25'),
-(7, 'application', 'New application submitted for pet Nei by Yilin Fu', 'Just now', NULL, '2026-05-19 19:48:26'),
+(7, 'application', 'New application submitted for Example Dog by Example Applicant', 'Just now', NULL, '2026-05-19 19:48:26'),
 (8, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-19 19:48:40'),
 (9, 'member_addition', 'New Member Program ''National Serivce Dogs'' (ADI-49688) was registered.', 'Just now', NULL, '2026-05-19 19:50:10'),
 (10, 'application_update', 'Application ID 1 for Nei was Approved', 'Just now', NULL, '2026-05-19 19:50:20'),
-(11, 'user_onboarding', 'Auto-onboarded owner Yilin Fu via Approved application', 'Just now', NULL, '2026-05-19 19:50:20'),
+(11, 'user_onboarding', 'Auto-onboarded Example Applicant via Approved application', 'Just now', NULL, '2026-05-19 19:50:20'),
 (12, 'animal_registration', 'Auto-registered animal Nei (Registry ID: SAR-6652) via Approved application', 'Just now', NULL, '2026-05-19 19:50:20'),
 (13, 'animal_update', 'Admin updated service animal Nei (DB ID: 4)', 'Just now', NULL, '2026-05-19 19:52:17'),
-(14, 'user_onboarding', 'Issued new credentials/password for owner Yilin Fu', 'Just now', NULL, '2026-05-19 19:52:32'),
-(15, 'auth', 'Yilin Fu logged in successfully', 'Just now', 5, '2026-05-19 19:52:46'),
-(16, 'auth', 'Yilin Fu logged in successfully', 'Just now', 5, '2026-05-19 19:56:47'),
+(14, 'user_onboarding', 'Issued new credentials/password for Example Owner Four', 'Just now', NULL, '2026-05-19 19:52:32'),
+(15, 'auth', 'Example Owner Four logged in successfully', 'Just now', 5, '2026-05-19 19:52:46'),
+(16, 'auth', 'Example Owner Four logged in successfully', 'Just now', 5, '2026-05-19 19:56:47'),
 (17, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-19 20:05:15'),
 (18, 'member_update', 'Member Program ''Autism Assistance Dogs Ireland'' details were updated.', 'Just now', NULL, '2026-05-19 20:06:30'),
-(19, 'auth', 'Yilin Fu logged in successfully', 'Just now', 5, '2026-05-20 03:48:09'),
+(19, 'auth', 'Example Owner Four logged in successfully', 'Just now', 5, '2026-05-20 03:48:09'),
 (20, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-20 06:51:37'),
 (21, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-20 07:03:02'),
-(22, 'auth', 'Yilin Fu logged in successfully', 'Just now', 5, '2026-05-20 07:09:07'),
+(22, 'auth', 'Example Owner Four logged in successfully', 'Just now', 5, '2026-05-20 07:09:07'),
 (23, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-20 07:41:42'),
 (24, 'auth', 'Registrar General logged in successfully', 'Just now', 1, '2026-05-20 07:42:46'),
 (25, 'member_import', 'Imported 271 member programs via CSV.', 'Just now', NULL, '2026-05-20 08:06:55'),

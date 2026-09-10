@@ -61,6 +61,10 @@ import {
 } from 'lucide-react';
 import { SectionHeading, Button, ExternalButton } from './UI';
 
+const privateDocumentUrl = (value: string) => value.startsWith('/uploads/')
+  ? `/api/admin/uploads/${value.split('/').pop()}`
+  : value;
+
 export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { isOpen: boolean, onClose: () => void, onAdd?: () => void, initialOwner?: string }) => {
   const [searchOwner, setSearchOwner] = React.useState(initialOwner);
   const [selectedOwner, setSelectedOwner] = React.useState<any>(null);
@@ -933,7 +937,7 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
                 </div>
                 {animal.doc_attestation && (
                   <a 
-                    href={animal.doc_attestation} 
+                    href={privateDocumentUrl(animal.doc_attestation)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -953,7 +957,7 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
                 </div>
                 {animal.doc_certificate && (
                   <a 
-                    href={animal.doc_certificate} 
+                    href={privateDocumentUrl(animal.doc_certificate)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -973,7 +977,7 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
                 </div>
                 {animal.doc_id && (
                   <a 
-                    href={animal.doc_id} 
+                    href={privateDocumentUrl(animal.doc_id)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -993,7 +997,7 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
                 </div>
                 {animal.doc_other && (
                   <a 
-                    href={animal.doc_other} 
+                    href={privateDocumentUrl(animal.doc_other)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -2235,7 +2239,7 @@ export const IssueCredentialsModal = ({ isOpen, onClose, onOnboard }: { isOpen: 
   const [phone, setPhone] = React.useState('');
   const [country, setCountry] = React.useState('United States of America');
   const [address, setAddress] = React.useState('');
-  const [password, setPassword] = React.useState('S3rv1c3!Auth2024');
+  const [password, setPassword] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   React.useEffect(() => {
@@ -2245,7 +2249,7 @@ export const IssueCredentialsModal = ({ isOpen, onClose, onOnboard }: { isOpen: 
       setPhone('');
       setCountry('United States of America');
       setAddress('');
-      setPassword('S3rv1c3!Auth2024');
+      setPassword('');
     }
   }, [isOpen]);
 
@@ -2419,12 +2423,12 @@ export const IssueCredentialsModal = ({ isOpen, onClose, onOnboard }: { isOpen: 
 };
 
 export const IssueOwnerCredentialsModal = ({ isOpen, onClose, owner, onIssue }: { isOpen: boolean, onClose: () => void, owner: any, onIssue?: () => void }) => {
-  const [password, setPassword] = React.useState('S3rv1c3!Auth2024');
+  const [password, setPassword] = React.useState('');
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   React.useEffect(() => {
     if (!isOpen) {
-      setPassword('S3rv1c3!Auth2024');
+      setPassword('');
     }
   }, [isOpen]);
 
@@ -2661,7 +2665,7 @@ export const ViewOwnerModal = ({ isOpen, onClose, owner }: { isOpen: boolean, on
               </div>
               {owner.id_doc && (
                 <a 
-                  href={owner.id_doc} 
+                  href={privateDocumentUrl(owner.id_doc)}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -5927,7 +5931,7 @@ export const OwnerProfileSection = () => {
     }
 
     try {
-      const res = await fetch(`/api/owner/profile/${user.id}`, {
+      const res = await fetch('/api/owner/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -6077,7 +6081,7 @@ export const OwnerSettingsSection = () => {
     }
 
     try {
-      const res = await fetch(`/api/owner/password/${user.id}`, {
+      const res = await fetch('/api/owner/password', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword })
@@ -6189,7 +6193,7 @@ export const OwnerStats = () => {
     const user = cached ? JSON.parse(cached) : null;
     if (!user) return;
 
-    fetch(`/api/owner/stats/${user.id}`)
+    fetch('/api/owner/stats')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -6400,7 +6404,7 @@ export const OwnerAnimals = () => {
     const user = cached ? JSON.parse(cached) : null;
     if (!user) return;
 
-    fetch(`/api/owner/animals/${user.id}`)
+    fetch('/api/owner/animals')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -6507,7 +6511,7 @@ export const OwnerSubmitTravelModal = ({ isOpen, onClose, onSubmit }: { isOpen: 
     const user = cached ? JSON.parse(cached) : null;
     if (!user) return;
 
-    fetch(`/api/owner/animals/${user.id}`)
+    fetch('/api/owner/animals')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -6534,11 +6538,10 @@ export const OwnerSubmitTravelModal = ({ isOpen, onClose, onSubmit }: { isOpen: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ownerId: user.id,
-          animalId: Number(formData.animalId),
-          travelDate: formData.travelDate,
-          flightNumber: formData.flightNumber,
-          confirmationNumber: formData.confirmationNumber,
+          animal_id: Number(formData.animalId),
+          travel_date: formData.travelDate,
+          flight_number: formData.flightNumber,
+          confirmation_number: formData.confirmationNumber,
           route: formData.route
         })
       });
@@ -6686,7 +6689,7 @@ export const OwnerTravelSection = () => {
     const user = cached ? JSON.parse(cached) : null;
     if (!user) return;
 
-    fetch(`/api/owner/travel/${user.id}`)
+    fetch('/api/owner/travel')
       .then(res => res.json())
       .then(data => {
         if (data.success) {
@@ -7684,16 +7687,26 @@ export const ApplyForm = () => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, pet_photo: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Pet photo must be a JPEG, PNG, or WebP image.');
+      e.target.value = '';
+      return;
     }
+    if (file.size > 3 * 1024 * 1024) {
+      setError('Pet photo must be 3 MB or smaller.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const dataUrl = reader.result as string;
+      setPreviewUrl(dataUrl);
+      setFormData(prev => ({ ...prev, pet_photo: dataUrl }));
+      setError('');
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -7919,7 +7932,7 @@ export const ApplyForm = () => {
                       )}
                     </div>
                     <div className="flex-grow border-2 border-dashed border-brand-primary/10 rounded-2xl p-6 bg-brand-surface text-center hover:border-brand-primary transition-colors cursor-pointer relative">
-                      <input type="file" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" accept="image/*" />
+                      <input type="file" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer z-10" accept="image/jpeg,image/png,image/webp" />
                       <p className="text-sm font-bold text-brand-primary/60">Clear photo of your service animal</p>
                       <p className="text-[10px] text-brand-primary/30 uppercase mt-1 font-black">Face and body must be clearly visible</p>
                     </div>

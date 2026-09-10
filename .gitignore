@@ -7,3 +7,5 @@ coverage/
 !.env.example
 uploads/
 deploy.zip
+playwright-report/
+test-results/

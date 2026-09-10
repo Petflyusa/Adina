@@ -76,28 +76,36 @@ export default function App() {
 
   const [activePage, setActivePage] = useState(() => {
     const { page } = parseHash();
-    const savedUser = localStorage.getItem('currentUser');
-    const user = savedUser ? JSON.parse(savedUser) : null;
-    if (page === 'admin' && (!user || user.role !== 'admin')) return 'home';
-    if (page === 'owner' && (!user || user.role !== 'owner')) return 'home';
     return page;
   });
 
-  const [currentUser, setCurrentUser] = useState<any>(() => {
-    const saved = localStorage.getItem('currentUser');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(async response => response.ok ? response.json() : null)
+      .then(data => {
+        if (data?.success) {
+          setCurrentUser(data.user);
+          localStorage.setItem('currentUser', JSON.stringify(data.user));
+        } else {
+          localStorage.removeItem('currentUser');
+        }
+      })
+      .catch(() => localStorage.removeItem('currentUser'))
+      .finally(() => setAuthReady(true));
+  }, []);
 
   useEffect(() => {
     const handleHashChange = () => {
       const { page } = parseHash();
-      const savedUser = localStorage.getItem('currentUser');
-      const user = savedUser ? JSON.parse(savedUser) : null;
-      if (page === 'admin' && (!user || user.role !== 'admin')) {
+      if (!authReady) return;
+      if (page === 'admin' && currentUser?.role !== 'admin') {
         window.location.hash = '#/login';
         return;
       }
-      if (page === 'owner' && (!user || user.role !== 'owner')) {
+      if (page === 'owner' && currentUser?.role !== 'owner') {
         window.location.hash = '#/login';
         return;
       }
@@ -114,7 +122,7 @@ export default function App() {
     }
 
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [authReady, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('activePage', activePage);
@@ -128,10 +136,15 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     navigateTo('home');
   };
+
+  if (!authReady) {
+    return <div className="min-h-screen bg-brand-surface" aria-label="Loading session" />;
+  }
 
   const HomeView = () => (
     <main>

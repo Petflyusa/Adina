@@ -4,6 +4,13 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import jwt from 'jsonwebtoken';
+import { rateLimit } from 'express-rate-limit';
+import { validateDocumentDataUrl, validateImageDataUrl } from './src/server/uploadValidation.js';
 
 dotenv.config();
 
@@ -11,16 +18,118 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.disable('x-powered-by');
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      imgSrc: ["'self'", 'data:', 'https://images.unsplash.com']
+    }
+  },
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser());
+app.use('/uploads', (req, res, next) => {
+  if (/^(?:app_id_doc|id_doc|attestation|certificate|other_doc)_/i.test(path.basename(req.path))) {
+    return res.status(404).end();
+  }
+  next();
+});
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Create MySQL connection pool using Hostinger MySQL
+const SESSION_COOKIE = 'adina_session';
+const SESSION_SECRET = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'adina-local-development-secret');
+
+if (!SESSION_SECRET) {
+  throw new Error('SESSION_SECRET is required in production.');
+}
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts. Please try again later.' }
+});
+
+const applicationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many applications. Please try again later.' }
+});
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const APPLICATION_STATUSES = new Set(['Pending', 'Approved', 'Rejected']);
+const TRAVEL_STATUSES = new Set(['Verified', 'Rejected']);
+
+function isNonEmptyString(value, maxLength) {
+  return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= maxLength;
+}
+
+function validateApplication(data) {
+  if (!data || typeof data !== 'object') return 'Application data is required.';
+  for (const [field, maxLength] of [['handler_name', 255], ['pet_name', 255], ['pet_breed', 255], ['pet_microchip', 50]]) {
+    if (!isNonEmptyString(data[field], maxLength)) return `${field} is required and must be ${maxLength} characters or fewer.`;
+  }
+  if (!isNonEmptyString(data.email, 255) || !EMAIL_PATTERN.test(data.email.trim())) return 'A valid email address is required.';
+  if (!/^[A-Za-z0-9-]{9,50}$/.test(data.pet_microchip.trim())) return 'Pet microchip must be 9 to 50 letters or digits.';
+  if (data.id_last4 && !/^\d{4}$/.test(String(data.id_last4))) return 'ID last four digits must contain exactly four digits.';
+  for (const field of ['pet_dob', 'rabies_expiration', 'completion_date']) {
+    if (data[field] && Number.isNaN(Date.parse(data[field]))) return `${field} must be a valid date.`;
+  }
+  return null;
+}
+
+function setSessionCookie(res, user) {
+  const token = jwt.sign(
+    { sub: String(user.id), role: user.role, name: user.name },
+    SESSION_SECRET,
+    { expiresIn: '8h', issuer: 'adina-api', audience: 'adina-web' }
+  );
+  res.cookie(SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 8 * 60 * 60 * 1000,
+    path: '/'
+  });
+}
+
+function readSession(req) {
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (!token) return null;
+  try {
+    return jwt.verify(token, SESSION_SECRET, { issuer: 'adina-api', audience: 'adina-web' });
+  } catch {
+    return null;
+  }
+}
+
+function requireRole(role) {
+  return (req, res, next) => {
+    const session = readSession(req);
+    if (!session) return res.status(401).json({ success: false, error: 'Authentication required.' });
+    if (session.role !== role) return res.status(403).json({ success: false, error: 'Insufficient permissions.' });
+    req.user = { id: Number(session.sub), role: session.role, name: session.name };
+    next();
+  };
+}
+
+const requiredDatabaseConfig = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
+const missingDatabaseConfig = requiredDatabaseConfig.filter((key) => !process.env[key]);
+if (missingDatabaseConfig.length > 0) {
+  throw new Error(`Missing required database configuration: ${missingDatabaseConfig.join(', ')}`);
+}
+
+// Create MySQL connection pool using environment-managed credentials.
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'srv1134.hstgr.io',
+  host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT || '3306', 10),
-  user: process.env.DB_USER || 'u884869254_adina',
-  password: process.env.DB_PASSWORD || 'Jz10191019@@',
-  database: process.env.DB_NAME || 'u884869254_adina',
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
@@ -28,10 +137,10 @@ const pool = mysql.createPool({
 });
 
 // Helper to log activities
-async function logActivity(type, description, userId = null) {
+async function logActivity(type, description, userId = null, db = pool) {
   try {
     const timestamp = 'Just now';
-    await pool.query(
+    await db.query(
       'INSERT INTO activities (type, description, timestamp, user_id) VALUES (?, ?, ?, ?)',
       [type, description, timestamp, userId]
     );
@@ -75,9 +184,7 @@ async function saveBase64File(base64Str, prefix = 'doc') {
 
     fs.writeFileSync(filepath, buffer);
 
-    // Return public URL path (served statically via /uploads route)
-    const publicUrl = `/uploads/${filename}`;
-    return publicUrl;
+    return `/api/admin/uploads/${filename}`;
   } catch (err) {
     console.error('Failed to write file to disk (serverless env?), storing base64 data URL directly:', err.message);
     // Vercel serverless has ephemeral filesystem — fall back to storing the base64 data URL directly in the DB
@@ -92,64 +199,11 @@ async function saveBase64Image(base64Str) {
   return base64Str;
 }
 
-// Check database connection on startup and initialize schema if needed
+// Check database connectivity only. Schema changes are applied explicitly by operators.
 (async () => {
   try {
     const conn = await pool.getConnection();
-    console.log('Successfully connected to Hostinger MySQL Database.');
-
-    // Check if the database is initialized by looking for the users table
-    const [tables] = await conn.query(
-      "SHOW TABLES LIKE 'users'"
-    );
-    if (tables.length === 0) {
-      console.log('Database tables not found. Initializing schema from schema.sql...');
-      const sqlPath = path.join(__dirname, 'schema.sql');
-      if (fs.existsSync(sqlPath)) {
-        const sql = fs.readFileSync(sqlPath, 'utf8');
-        // Split by semicolon and execute each statement
-        const statements = sql.split(';').filter(s => s.trim());
-        for (const statement of statements) {
-          const trimmed = statement.trim();
-          if (trimmed) {
-            try {
-              await conn.query(trimmed);
-            } catch (err) {
-              // Ignore SET FOREIGN_KEY_CHECKS and some create table warnings
-              if (!err.message.includes('already exists')) {
-                console.error('SQL statement error:', err.message);
-              }
-            }
-          }
-        }
-        console.log('Database schema successfully initialized.');
-      } else {
-        console.warn('schema.sql not found at ' + sqlPath);
-      }
-    }
-
-    // Ensure applications.id_doc column exists (migration for existing DBs)
-    try {
-      const [cols] = await conn.query("SHOW COLUMNS FROM applications LIKE 'id_doc'");
-      if (cols.length === 0) {
-        await conn.query("ALTER TABLE applications ADD COLUMN id_doc TEXT DEFAULT NULL AFTER id_last4");
-        console.log('Migration: added id_doc column to applications table.');
-      }
-    } catch (err) {
-      console.warn('Migration check for id_doc failed:', err.message);
-    }
-
-    // Base64 photos are larger than VARCHAR(500). MEDIUMTEXT also keeps them
-    // available after a serverless function or local uploads directory resets.
-    for (const table of ['animals', 'applications']) {
-      const column = table === 'animals' ? 'img' : 'pet_photo';
-      try {
-        await conn.query(`ALTER TABLE ${table} MODIFY COLUMN ${column} MEDIUMTEXT DEFAULT NULL`);
-      } catch (err) {
-        console.warn(`Migration check for ${table}.${column} failed:`, err.message);
-      }
-    }
-
+    console.log('Successfully connected to MySQL database.');
     conn.release();
   } catch (err) {
     console.error('Database connection failed on startup:', err);
@@ -160,7 +214,7 @@ async function saveBase64Image(base64Str) {
 // 1. PUBLIC API ENDPOINTS
 // ==========================================
 
-app.get('/api/test-db-connection', async (req, res) => {
+if (process.env.NODE_ENV !== 'production') app.get('/api/test-db-connection', async (req, res) => {
   try {
     const conn = await pool.getConnection();
     const [rows] = await conn.query('SELECT 1 + 1 AS result');
@@ -192,7 +246,7 @@ app.get('/api/verify/:microchip', async (req, res) => {
     let owner = null;
 
     if (animal.handler_id) {
-      const [users] = await pool.query('SELECT name, img, member_since, registry_id, status, residential_country, phone, id_last4 FROM users WHERE id = ?', [animal.handler_id]);
+      const [users] = await pool.query('SELECT name, img, member_since, registry_id, status, residential_country FROM users WHERE id = ?', [animal.handler_id]);
       if (users.length > 0) {
         owner = users[0];
       }
@@ -239,8 +293,7 @@ app.get('/api/verify/:microchip', async (req, res) => {
           accountStatus: owner.status || 'N/A',
           country: owner.residential_country || 'N/A',
           memberSince: owner.member_since,
-          registryNumber: owner.registry_id,
-          idLast4: owner.id_last4 || 'N/A'
+          registryNumber: owner.registry_id
         } : {
           name: 'Unknown Handler',
           photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100',
@@ -254,7 +307,7 @@ app.get('/api/verify/:microchip', async (req, res) => {
           name: animal.facility_name || 'Accredited Training Center',
           accreditation: 'ADI Global Member Accreditation',
           location: facilityMember ? facilityMember.country : (owner ? owner.residential_country : 'N/A'),
-          contact: facilityMember ? facilityMember.phone : (owner ? owner.phone : 'N/A'),
+          contact: facilityMember ? facilityMember.phone : undefined,
           trainer: animal.trainer_name || 'Certified Trainer',
           trainedTask: animal.trained_task || 'Assistance Dog',
           completionDate: animal.completion_date ? new Date(animal.completion_date).toLocaleDateString() : 'N/A',
@@ -271,8 +324,10 @@ app.get('/api/verify/:microchip', async (req, res) => {
 });
 
 // Submit Application (Apply Now)
-app.post('/api/applications', async (req, res) => {
+app.post('/api/applications', applicationLimiter, async (req, res) => {
   const data = req.body;
+  const validationError = validateApplication(data) || validateImageDataUrl(data?.pet_photo) || validateDocumentDataUrl(data?.id_doc);
+  if (validationError) return res.status(400).json({ success: false, error: validationError });
   try {
     const petPhotoUrl = await saveBase64Image(data.pet_photo);
     const idDocUrl = await saveBase64File(data.id_doc, 'app_id_doc');
@@ -336,20 +391,33 @@ app.get('/api/public/:registryId', async (req, res) => {
 // ==========================================
 
 // Login
-app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+app.post('/api/auth/login', authLimiter, async (req, res) => {
+  const { email, password, role } = req.body;
+  if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password) {
+    return res.status(400).json({ success: false, error: 'Email and password are required.' });
+  }
   try {
-    const [users] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+    const [users] = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [email.trim()]);
     if (users.length === 0) {
       return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
     const user = users[0];
-    if (user.password !== password) {
+    const isHashed = typeof user.password === 'string' && user.password.startsWith('$2');
+    const passwordMatches = isHashed
+      ? await bcrypt.compare(password, user.password)
+      : user.password === password;
+    if (!passwordMatches || (role && user.role !== role)) {
       return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
+    if (!isHashed) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      await pool.query('UPDATE users SET password = ? WHERE id = ?', [passwordHash, user.id]);
+    }
+
     await logActivity('auth', `${user.name} logged in successfully`, user.id);
+    setSessionCookie(res, user);
 
     res.json({
       success: true,
@@ -369,11 +437,40 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Register (owner self-registration)
-app.post('/api/auth/register', async (req, res) => {
-  const { name, email, password, phone, residential_country, address } = req.body;
+app.get('/api/auth/me', async (req, res) => {
+  const session = readSession(req);
+  if (!session) return res.status(401).json({ success: false, error: 'Authentication required.' });
   try {
-    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    const [users] = await pool.query(
+      'SELECT id, name, email, role, registry_id, member_since, img, status FROM users WHERE id = ? AND role = ?',
+      [Number(session.sub), session.role]
+    );
+    if (users.length === 0) return res.status(401).json({ success: false, error: 'Authentication required.' });
+    const user = users[0];
+    res.json({ success: true, user: { ...user, registryId: user.registry_id, memberSince: user.member_since } });
+  } catch (err) {
+    console.error('Session lookup error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load session.' });
+  }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/' });
+  res.json({ success: true });
+});
+
+// Register (owner self-registration)
+app.post('/api/auth/register', authLimiter, async (req, res) => {
+  const { name, email, password, phone, residential_country, address } = req.body;
+  if (!isNonEmptyString(name, 255) || !isNonEmptyString(email, 255) || !EMAIL_PATTERN.test(email.trim())) {
+    return res.status(400).json({ success: false, error: 'A valid name and email are required.' });
+  }
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    return res.status(400).json({ success: false, error: 'Password must be between 8 and 128 characters.' });
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  try {
+    const [existing] = await pool.query('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
     if (existing.length > 0) {
       return res.status(400).json({ success: false, error: 'Email already registered.' });
     }
@@ -382,20 +479,22 @@ app.post('/api/auth/register', async (req, res) => {
     const member_since = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     const img = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100';
 
+    const passwordHash = await bcrypt.hash(password, 12);
     const [result] = await pool.query(
       `INSERT INTO users (email, password, name, phone, residential_country, address, role, registry_id, member_since, status, img)
        VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?, 'Active', ?)`,
-      [email, password, name, phone || '', residential_country || '', address || '', registry_id, member_since, img]
+      [normalizedEmail, passwordHash, name.trim(), phone || '', residential_country || '', address || '', registry_id, member_since, img]
     );
 
     await logActivity('user_onboarding', `New owner ${name} (Registry ID: ${registry_id}) registered`, result.insertId);
 
+    setSessionCookie(res, { id: result.insertId, name, role: 'owner' });
     res.json({
       success: true,
       user: {
         id: result.insertId,
         name,
-        email,
+        email: normalizedEmail,
         role: 'owner',
         registryId: registry_id,
         memberSince: member_since
@@ -407,13 +506,26 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+app.use('/api/owner', requireRole('owner'));
+app.use('/api/admin', requireRole('admin'));
+
+app.get('/api/admin/uploads/:filename', (req, res) => {
+  const filename = path.basename(req.params.filename);
+  if (!/^(?:app_id_doc|id_doc|attestation|certificate|other_doc)_/i.test(filename)) {
+    return res.status(404).json({ success: false, error: 'Document not found.' });
+  }
+  res.sendFile(path.join(uploadsDir, filename), (err) => {
+    if (err && !res.headersSent) res.status(404).json({ success: false, error: 'Document not found.' });
+  });
+});
+
 // ==========================================
 // 3. OWNER ENDPOINTS
 // ==========================================
 
 // Get owner dashboard data
-app.get('/api/owner/dashboard/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
+app.get(['/api/owner/dashboard', '/api/owner/dashboard/:ownerId'], async (req, res) => {
+  const ownerId = req.user.id;
   try {
     const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parseInt(ownerId, 10), 'owner']);
     if (users.length === 0) {
@@ -471,8 +583,8 @@ app.get('/api/owner/dashboard/:ownerId', async (req, res) => {
 });
 
 // Get owner animals
-app.get('/api/owner/animals/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
+app.get(['/api/owner/animals', '/api/owner/animals/:ownerId'], async (req, res) => {
+  const ownerId = req.user.id;
   try {
     const [animals] = await pool.query(
       "SELECT * FROM animals WHERE handler_id = ? ORDER BY id DESC",
@@ -486,8 +598,9 @@ app.get('/api/owner/animals/:ownerId', async (req, res) => {
 });
 
 // Get single animal by microchip for owner
-app.get('/api/owner/animal/:microchip/:ownerId', async (req, res) => {
-  const { microchip, ownerId } = req.params;
+app.get(['/api/owner/animal/:microchip', '/api/owner/animal/:microchip/:ownerId'], async (req, res) => {
+  const { microchip } = req.params;
+  const ownerId = req.user.id;
   try {
     const [animals] = await pool.query(
       'SELECT * FROM animals WHERE microchip = ? AND handler_id = ?',
@@ -503,17 +616,69 @@ app.get('/api/owner/animal/:microchip/:ownerId', async (req, res) => {
   }
 });
 
-// Submit travel request
-app.post('/api/travel', async (req, res) => {
-  const { owner_id, animal_id, travel_date, flight_number, confirmation_number, route } = req.body;
+app.get('/api/owner/stats', async (req, res) => {
+  const ownerId = req.user.id;
   try {
+    const [[animals]] = await pool.query('SELECT COUNT(*) AS total FROM animals WHERE handler_id = ?', [ownerId]);
+    const [[activeRequests]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Pending'", [ownerId]);
+    const [[completedTrips]] = await pool.query("SELECT COUNT(*) AS total FROM travel_requests WHERE owner_id = ? AND status = 'Approved' AND travel_date < CURRENT_DATE", [ownerId]);
+    res.json({
+      success: true,
+      stats: {
+        animalsCount: Number(animals.total),
+        activeRequestsCount: Number(activeRequests.total),
+        completedTripsCount: Number(completedTrips.total)
+      }
+    });
+  } catch (err) {
+    console.error('Get owner stats error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch owner stats.' });
+  }
+});
+
+app.get('/api/owner/travel', async (req, res) => {
+  try {
+    const [requests] = await pool.query(
+      `SELECT t.*, a.name AS animalName,
+              DATE_FORMAT(t.travel_date, '%b %d, %Y') AS travelDate,
+              DATE_FORMAT(t.submitted_at, '%b %d, %Y') AS submittedAt
+       FROM travel_requests t
+       JOIN animals a ON t.animal_id = a.id
+       WHERE t.owner_id = ?
+       ORDER BY t.id DESC`,
+      [req.user.id]
+    );
+    res.json({ success: true, requests });
+  } catch (err) {
+    console.error('Get owner travel requests error:', err);
+    res.status(500).json({ success: false, error: 'Failed to fetch travel requests.' });
+  }
+});
+
+// Submit travel request
+app.post(['/api/owner/travel', '/api/travel'], requireRole('owner'), async (req, res) => {
+  const owner_id = req.user.id;
+  const { animal_id, travel_date, flight_number, confirmation_number, route } = req.body;
+  if (!Number.isInteger(Number(animal_id)) || Number(animal_id) <= 0) {
+    return res.status(400).json({ success: false, error: 'A valid animal is required.' });
+  }
+  if (!travel_date || Number.isNaN(Date.parse(travel_date))) {
+    return res.status(400).json({ success: false, error: 'A valid travel date is required.' });
+  }
+  if (!isNonEmptyString(flight_number, 50) || !isNonEmptyString(confirmation_number, 100) || !isNonEmptyString(route, 255)) {
+    return res.status(400).json({ success: false, error: 'Flight number, confirmation number, and route are required.' });
+  }
+  try {
+    const [ownedAnimals] = await pool.query('SELECT id, name FROM animals WHERE id = ? AND handler_id = ?', [animal_id, owner_id]);
+    if (ownedAnimals.length === 0) {
+      return res.status(403).json({ success: false, error: 'Animal is not registered to this owner.' });
+    }
     const [result] = await pool.query(
       'INSERT INTO travel_requests (owner_id, animal_id, travel_date, flight_number, confirmation_number, route, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [owner_id, animal_id, travel_date, flight_number, confirmation_number, route, 'Pending']
     );
 
-    const [animals] = await pool.query('SELECT name FROM animals WHERE id = ?', [animal_id]);
-    const petName = animals.length > 0 ? animals[0].name : 'Unknown';
+    const petName = ownedAnimals[0].name;
 
     await logActivity('travel_request', `Travel request submitted for ${petName}`, owner_id);
 
@@ -525,9 +690,11 @@ app.post('/api/travel', async (req, res) => {
 });
 
 // Update profile
-app.put('/api/owner/profile/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
+app.put(['/api/owner/profile', '/api/owner/profile/:ownerId'], async (req, res) => {
+  const ownerId = req.user.id;
   const { name, phone, residential_country, address } = req.body;
+  const uploadError = validateDocumentDataUrl(req.body.id_doc);
+  if (uploadError) return res.status(400).json({ success: false, error: uploadError });
   try {
     const idDocUrl = req.body.id_doc && req.body.id_doc.startsWith('data:')
       ? await saveBase64File(req.body.id_doc, 'id_doc')
@@ -550,8 +717,8 @@ app.put('/api/owner/profile/:ownerId', async (req, res) => {
 });
 
 // Update password
-app.put('/api/owner/password/:ownerId', async (req, res) => {
-  const { ownerId } = req.params;
+app.put(['/api/owner/password', '/api/owner/password/:ownerId'], async (req, res) => {
+  const ownerId = req.user.id;
   const { currentPassword, newPassword } = req.body;
   try {
     const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parseInt(ownerId, 10), 'owner']);
@@ -560,11 +727,15 @@ app.put('/api/owner/password/:ownerId', async (req, res) => {
     }
 
     const user = users[0];
-    if (user.password !== currentPassword) {
+    const passwordMatches = user.password.startsWith('$2')
+      ? await bcrypt.compare(currentPassword, user.password)
+      : user.password === currentPassword;
+    if (!passwordMatches) {
       return res.status(400).json({ success: false, error: 'Incorrect current password.' });
     }
 
-    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parseInt(ownerId, 10)]);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [passwordHash, parseInt(ownerId, 10)]);
     await logActivity('password_change', `Changed password for user ID ${ownerId}`, parseInt(ownerId, 10));
 
     res.json({ success: true });
@@ -750,6 +921,10 @@ app.get('/api/admin/animals', async (req, res) => {
 // Admin register service animal directly
 app.post('/api/admin/animals', async (req, res) => {
   const data = req.body;
+  const uploadError = validateImageDataUrl(data.img) || ['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other']
+    .map((field) => validateDocumentDataUrl(data[field]))
+    .find(Boolean);
+  if (uploadError) return res.status(400).json({ success: false, error: uploadError });
   try {
     const petPhotoUrl = await saveBase64Image(data.img);
     const docAttestationUrl = await saveBase64File(data.doc_attestation, 'attestation');
@@ -788,6 +963,10 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
   const { db_id } = req.params;
   const parsedDbId = parseInt(db_id, 10);
   const data = req.body;
+  const uploadError = validateImageDataUrl(data.img) || ['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other']
+    .map((field) => validateDocumentDataUrl(data[field]))
+    .find(Boolean);
+  if (uploadError) return res.status(400).json({ success: false, error: uploadError });
   try {
     const petPhotoUrl = await saveBase64Image(data.img);
     const docAttestationUrl = await saveBase64File(data.doc_attestation, 'attestation');
@@ -869,15 +1048,22 @@ app.get('/api/admin/owners', async (req, res) => {
 // Admin onboard owner/issue credentials
 app.post('/api/admin/owners', async (req, res) => {
   const { name, email, phone, residential_country, address, password } = req.body;
+  if (!isNonEmptyString(name, 255) || !isNonEmptyString(email, 255) || !EMAIL_PATTERN.test(email.trim())) {
+    return res.status(400).json({ success: false, error: 'A valid name and email are required.' });
+  }
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    return res.status(400).json({ success: false, error: 'Password must be between 8 and 128 characters.' });
+  }
   try {
     const registry_id = `REG-${Math.floor(1000 + Math.random() * 9000)}`;
     const member_since = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     const img = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100';
 
+    const passwordHash = await bcrypt.hash(password, 12);
     const [result] = await pool.query(
       `INSERT INTO users (email, password, name, phone, residential_country, address, role, registry_id, member_since, status, img)
        VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?, 'Active', ?)`,
-      [email, password, name, phone, residential_country, address, registry_id, member_since, img]
+      [email.trim().toLowerCase(), passwordHash, name.trim(), phone, residential_country, address, registry_id, member_since, img]
     );
 
     await logActivity('user_onboarding', `Onboarded new owner ${name} (Registry ID: ${registry_id})`);
@@ -894,6 +1080,8 @@ app.put('/api/admin/owners/:id', async (req, res) => {
   const { id } = req.params;
   const parsedId = parseInt(id, 10);
   const { name, email, phone, residential_country, address, status, id_type, id_last4, id_doc } = req.body;
+  const uploadError = validateDocumentDataUrl(id_doc);
+  if (uploadError) return res.status(400).json({ success: false, error: uploadError });
   try {
     const idDocUrl = id_doc && id_doc.startsWith('data:')
       ? await saveBase64File(id_doc, 'id_doc')
@@ -926,7 +1114,8 @@ app.put('/api/admin/owners/:id/credentials', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
     }
 
-    await pool.query("UPDATE users SET password = ? WHERE id = ? AND role = 'owner'", [password, parsedId]);
+    const passwordHash = await bcrypt.hash(password, 12);
+    await pool.query("UPDATE users SET password = ? WHERE id = ? AND role = 'owner'", [passwordHash, parsedId]);
 
     const [[owner]] = await pool.query('SELECT name FROM users WHERE id = ?', [parsedId]);
     await logActivity('user_onboarding', `Issued new credentials/password for owner ${owner ? owner.name : 'ID ' + id}`);
@@ -1021,6 +1210,9 @@ app.put('/api/admin/travel/:id', async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const cleanId = parseInt(id.replace('AIR-', ''), 10);
+  if (!Number.isInteger(cleanId) || !TRAVEL_STATUSES.has(status)) {
+    return res.status(400).json({ success: false, error: 'Status must be Verified or Rejected.' });
+  }
   try {
     const mappedStatus = status === 'Verified' ? 'Approved' : 'Rejected';
     await pool.query('UPDATE travel_requests SET status = ? WHERE id = ?', [mappedStatus, cleanId]);
@@ -1042,34 +1234,56 @@ app.put('/api/admin/applications/:id', async (req, res) => {
   const { id } = req.params;
   const parsedId = parseInt(id, 10);
   const { status } = req.body;
+  if (!Number.isInteger(parsedId) || parsedId <= 0 || !APPLICATION_STATUSES.has(status)) {
+    return res.status(400).json({ success: false, error: 'Status must be Pending, Approved, or Rejected.' });
+  }
+  let conn;
   try {
-    await pool.query('UPDATE applications SET status = ? WHERE id = ?', [status, parsedId]);
+    conn = await pool.getConnection();
+    await conn.beginTransaction();
+    const [apps] = await conn.query('SELECT * FROM applications WHERE id = ? FOR UPDATE', [parsedId]);
+    if (apps.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ success: false, error: 'Application not found.' });
+    }
 
-    const [apps] = await pool.query('SELECT * FROM applications WHERE id = ?', [parsedId]);
-    if (apps.length > 0) {
-      const appData = apps[0];
-      await logActivity('application_update', `Application ID ${id} for ${appData.pet_name} was ${status}`);
+    const appData = apps[0];
+    if (appData.status === status) {
+      await conn.rollback();
+      return res.json({ success: true, alreadyProcessed: true });
+    }
+    if (appData.status !== 'Pending') {
+      await conn.rollback();
+      return res.status(409).json({ success: false, error: `Application is already ${appData.status}.` });
+    }
 
-      if (status === 'Approved') {
+    if (status === 'Approved') {
         let ownerId;
-        const [users] = await pool.query("SELECT id FROM users WHERE email = ? AND role = 'owner'", [appData.email]);
+        const [users] = await conn.query("SELECT id FROM users WHERE email = ? AND role = 'owner'", [appData.email]);
 
         if (users.length > 0) {
           ownerId = users[0].id;
         } else {
-          const registry_id = `REG-${Math.floor(1000 + Math.random() * 9000)}`;
+          const registry_id = `REG-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
           const member_since = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          const [result] = await pool.query(
+          const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+          const [result] = await conn.query(
             `INSERT INTO users (email, password, name, phone, residential_country, address, role, registry_id, member_since, status, img, id_type, id_last4)
-             VALUES (?, 'S3rv1c3!Auth2024', ?, ?, ?, ?, 'owner', ?, ?, 'Active', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', ?, ?)`,
-            [appData.email, appData.handler_name, appData.phone, appData.country, appData.address, registry_id, member_since, appData.id_type || null, appData.id_last4 || null]
+             VALUES (?, ?, ?, ?, ?, ?, 'owner', ?, ?, 'Active', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=100', ?, ?)`,
+            [appData.email, passwordHash, appData.handler_name, appData.phone, appData.country, appData.address, registry_id, member_since, appData.id_type || null, appData.id_last4 || null]
           );
           ownerId = result.insertId;
-          await logActivity('user_onboarding', `Auto-onboarded owner ${appData.handler_name} via Approved application`);
+          await logActivity('user_onboarding', `Auto-onboarded owner ${appData.handler_name} via Approved application`, ownerId, conn);
         }
 
-        const animal_registry_id = `SAR-${Math.floor(1000 + Math.random() * 9000)}`;
-        await pool.query(
+        const [existingAnimals] = await conn.query('SELECT id, handler_id FROM animals WHERE microchip = ? FOR UPDATE', [appData.pet_microchip]);
+        if (existingAnimals.length > 0 && Number(existingAnimals[0].handler_id) !== Number(ownerId)) {
+          await conn.rollback();
+          return res.status(409).json({ success: false, error: 'This microchip is already registered to another owner.' });
+        }
+        if (existingAnimals.length === 0) {
+          const animal_registry_id = `SAR-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+          await conn.query(
           `INSERT INTO animals (
             registry_id, name, breed, gender, weight, microchip, date_of_birth, color,
             rabies_expiration, rabies_serial, rabies_brand, rabies_type,
@@ -1082,14 +1296,23 @@ app.put('/api/admin/applications/:id', async (req, res) => {
             appData.pet_photo || 'https://images.unsplash.com/photo-1541888946425-d81bb19480c5?auto=format&fit=crop&q=80&w=100'
           ]
         );
-        await logActivity('animal_registration', `Auto-registered animal ${appData.pet_name} (Registry ID: ${animal_registry_id}) via Approved application`);
-      }
+          await logActivity('animal_registration', `Auto-registered animal ${appData.pet_name} (Registry ID: ${animal_registry_id}) via Approved application`, ownerId, conn);
+        }
     }
 
-    res.json({ success: true });
+    await conn.query('UPDATE applications SET status = ? WHERE id = ?', [status, parsedId]);
+    await logActivity('application_update', `Application ID ${id} for ${appData.pet_name} was ${status}`, null, conn);
+    await conn.commit();
+    res.json({ success: true, alreadyProcessed: false });
   } catch (err) {
+    if (conn) await conn.rollback();
     console.error('Approve application error:', err);
+    if (err.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ success: false, error: 'Email, registry ID, or microchip is already registered.' });
+    }
     res.status(500).json({ success: false, error: 'Failed to update application status.' });
+  } finally {
+    conn?.release();
   }
 });
 
@@ -1200,10 +1423,14 @@ app.put('/api/admin/password/:userId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Admin user not found.' });
     }
     const user = users[0];
-    if (user.password !== currentPassword) {
+    const passwordMatches = user.password.startsWith('$2')
+      ? await bcrypt.compare(currentPassword, user.password)
+      : user.password === currentPassword;
+    if (!passwordMatches) {
       return res.status(400).json({ success: false, error: 'Incorrect current password.' });
     }
-    await pool.query('UPDATE users SET password = ? WHERE id = ?', [newPassword, parsedUserId]);
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await pool.query('UPDATE users SET password = ? WHERE id = ?', [passwordHash, parsedUserId]);
     await logActivity('password_change', `Admin updated password`, parsedUserId);
     res.json({ success: true });
   } catch (err) {
@@ -1215,15 +1442,21 @@ app.put('/api/admin/password/:userId', async (req, res) => {
 // ==========================================
 // 5. PRODUCTION ASSETS SERVICE
 // ==========================================
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: 'API endpoint not found.' });
+});
+
 app.use(express.static(path.join(__dirname, 'dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Start Server
-const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
-  console.log(`Backend server is running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 8000;
+  app.listen(PORT, () => {
+    console.log(`Backend server is running on port ${PORT}`);
+  });
+}
 
 export default app;
