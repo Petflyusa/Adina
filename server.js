@@ -38,10 +38,14 @@ app.use('/uploads', (req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 const SESSION_COOKIE = 'adina_session';
-const SESSION_SECRET = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'adina-local-development-secret');
+const SESSION_SECRET = process.env.SESSION_SECRET || (
+  process.env.NODE_ENV === 'production'
+    ? crypto.randomBytes(32).toString('hex')
+    : 'adina-local-development-secret'
+);
 
-if (!SESSION_SECRET) {
-  throw new Error('SESSION_SECRET is required in production.');
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  console.warn('SESSION_SECRET is not configured; login sessions will reset when the server restarts.');
 }
 
 const authLimiter = rateLimit({
