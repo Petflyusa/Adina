@@ -6,18 +6,16 @@ import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('production starts when SESSION_SECRET has not been configured yet', async (t) => {
+test('production starts when deployment environment variables have not been configured yet', async (t) => {
   const port = 8131;
   const env = {
     ...process.env,
     NODE_ENV: 'production',
-    PORT: String(port),
-    DB_HOST: '127.0.0.1',
-    DB_USER: 'startup-test',
-    DB_PASSWORD: 'startup-test',
-    DB_NAME: 'startup_test'
+    PORT: String(port)
   };
-  delete env.SESSION_SECRET;
+  for (const key of ['SESSION_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']) {
+    delete env[key];
+  }
 
   const server = spawn(process.execPath, [path.join(repoRoot, 'server.js')], {
     cwd: '/tmp',

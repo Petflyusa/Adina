@@ -124,7 +124,9 @@ function requireRole(role) {
 const requiredDatabaseConfig = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'];
 const missingDatabaseConfig = requiredDatabaseConfig.filter((key) => !process.env[key]);
 if (missingDatabaseConfig.length > 0) {
-  throw new Error(`Missing required database configuration: ${missingDatabaseConfig.join(', ')}`);
+  console.error(
+    `Missing database configuration (${missingDatabaseConfig.join(', ')}); database-backed APIs will be unavailable until it is configured.`
+  );
 }
 
 // Create MySQL connection pool using environment-managed credentials.
