@@ -34,6 +34,28 @@ test('Apply page renders its hero image and keeps a selected pet photo preview',
   await page.screenshot({ path: testInfo.outputPath('apply.png'), fullPage: false });
 });
 
+test('successful admin login is not redirected back to the login page', async ({ page }) => {
+  await page.route('**/api/auth/me', async (route) => {
+    await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ success: false }) });
+  });
+  await page.route('**/api/auth/login', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ success: true, user: { id: 1, name: 'Admin', role: 'admin' } })
+    });
+  });
+
+  await page.goto('/#/login');
+  await page.getByRole('button', { name: 'Admin Login' }).click();
+  await page.getByPlaceholder('e.g. admin@adi.org').fill('admin@example.com');
+  await page.getByPlaceholder('••••••••').fill('valid-password');
+  await page.getByRole('button', { name: 'Admin Portal Login' }).click();
+
+  await expect(page).toHaveURL(/#\/admin\/dashboard$/);
+  await expect(page.getByText('Dashboard Overview', { exact: true })).toBeVisible();
+});
+
 for (const route of ['/#/verify', '/#/members', '/#/login']) {
   test(`${route} renders meaningful content`, async ({ page }) => {
     await page.goto(route);

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Navbar, Footer } from './components/Navigation';
 import { 
   Hero, 
@@ -80,6 +80,7 @@ export default function App() {
   });
 
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const currentUserRef = useRef<any>(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
@@ -87,13 +88,18 @@ export default function App() {
       .then(async response => response.ok ? response.json() : null)
       .then(data => {
         if (data?.success) {
+          currentUserRef.current = data.user;
           setCurrentUser(data.user);
           localStorage.setItem('currentUser', JSON.stringify(data.user));
         } else {
+          currentUserRef.current = null;
           localStorage.removeItem('currentUser');
         }
       })
-      .catch(() => localStorage.removeItem('currentUser'))
+      .catch(() => {
+        currentUserRef.current = null;
+        localStorage.removeItem('currentUser');
+      })
       .finally(() => setAuthReady(true));
   }, []);
 
@@ -101,11 +107,11 @@ export default function App() {
     const handleHashChange = () => {
       const { page } = parseHash();
       if (!authReady) return;
-      if (page === 'admin' && currentUser?.role !== 'admin') {
+      if (page === 'admin' && currentUserRef.current?.role !== 'admin') {
         window.location.hash = '#/login';
         return;
       }
-      if (page === 'owner' && currentUser?.role !== 'owner') {
+      if (page === 'owner' && currentUserRef.current?.role !== 'owner') {
         window.location.hash = '#/login';
         return;
       }
@@ -130,6 +136,7 @@ export default function App() {
   }, [activePage]);
 
   const handleLoginSuccess = (role: string, user: any) => {
+    currentUserRef.current = user;
     setCurrentUser(user);
     localStorage.setItem('currentUser', JSON.stringify(user));
     navigateTo(role);
@@ -137,6 +144,7 @@ export default function App() {
 
   const handleLogout = () => {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined);
+    currentUserRef.current = null;
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
     navigateTo('home');
