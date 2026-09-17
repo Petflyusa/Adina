@@ -56,6 +56,59 @@ test('successful admin login is not redirected back to the login page', async ({
   await expect(page.getByText('Dashboard Overview', { exact: true })).toBeVisible();
 });
 
+test('admin can change an animal status from the profile popup', async ({ page }, testInfo) => {
+  const animal = {
+    db_id: 7,
+    id: 'SAR-1007',
+    registry_id: 'SAR-1007',
+    name: 'Status Test Dog',
+    breed: 'Labrador Retriever',
+    gender: 'Female',
+    weight: '25kg',
+    microchip: '985112000000007',
+    status: 'Certified',
+    handler: 'Test Owner',
+    handler_id: 12,
+    img: `data:image/png;base64,${onePixelPng.toString('base64')}`
+  };
+  let updateBody;
+
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ success: true, user: { id: 1, name: 'Admin', role: 'admin' } })
+  }));
+  await page.route('**/api/admin/animals', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, animals: [animal] }) });
+    } else {
+      await route.continue();
+    }
+  });
+  await page.route('**/api/admin/animals/7/status', async (route) => {
+    updateBody = route.request().postDataJSON();
+    expect(route.request().method()).toBe('PATCH');
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
+  });
+  await page.route('**/api/admin/owners', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, owners: [] }) }));
+  await page.route('**/api/admin/members', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, members: [] }) }));
+  await page.route('**/api/admin/stats', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, stats: {} }) }));
+
+  await page.goto('/#/admin/animals');
+  const row = page.getByRole('row').filter({ hasText: 'Status Test Dog' });
+  await row.getByRole('button').click();
+  await page.getByRole('button', { name: 'View Details' }).click();
+
+  const status = page.getByLabel('Animal status');
+  await expect(status.locator('option')).toHaveText(['Certified', 'Pending', 'Review']);
+  await status.selectOption('Review');
+  await page.getByRole('button', { name: 'Update Status' }).click();
+
+  await expect(page.getByText('Status updated successfully.')).toBeVisible();
+  expect(updateBody.status).toBe('Review');
+  await page.screenshot({ path: testInfo.outputPath('animal-profile-status.png'), fullPage: false });
+});
+
 for (const route of ['/#/verify', '/#/members', '/#/login']) {
   test(`${route} renders meaningful content`, async ({ page }) => {
     await page.goto(route);

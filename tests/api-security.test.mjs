@@ -156,3 +156,21 @@ test('admin travel update rejects unsupported status before database access', as
   });
   assert.equal(response.status, 400);
 });
+
+test('admin animal update rejects unsupported status before database access', async () => {
+  for (const [path, method] of [
+    ['/api/admin/animals/1', 'PUT'],
+    ['/api/admin/animals/1/status', 'PATCH']
+  ]) {
+    const response = await fetch(`${origin}${path}`, {
+      method,
+      headers: adminHeaders,
+      body: JSON.stringify({ status: 'Expired' })
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      success: false,
+      error: 'Status must be Certified, Pending, or Review.'
+    });
+  }
+});

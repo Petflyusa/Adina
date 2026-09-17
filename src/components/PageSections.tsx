@@ -746,9 +746,21 @@ export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { 
   );
 };
 
-export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, onClose: () => void, animal: any }) => {
+export const ViewAnimalModal = ({ isOpen, onClose, onUpdate, canEditStatus = false, animal }: { isOpen: boolean, onClose: () => void, onUpdate?: () => void, canEditStatus?: boolean, animal: any }) => {
   const [facilityMember, setFacilityMember] = React.useState<any>(null);
   const [enlargedPhoto, setEnlargedPhoto] = React.useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = React.useState('Certified');
+  const [savedStatus, setSavedStatus] = React.useState('Certified');
+  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false);
+  const [statusMessage, setStatusMessage] = React.useState('');
+  const [statusError, setStatusError] = React.useState('');
+
+  React.useEffect(() => {
+    setSelectedStatus(animal?.status || 'Certified');
+    setSavedStatus(animal?.status || 'Certified');
+    setStatusMessage('');
+    setStatusError('');
+  }, [isOpen, animal]);
 
   React.useEffect(() => {
     if (isOpen && animal?.facility_name) {
@@ -765,6 +777,28 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
       setFacilityMember(null);
     }
   }, [isOpen, animal]);
+
+  const handleStatusUpdate = async () => {
+    setIsUpdatingStatus(true);
+    setStatusMessage('');
+    setStatusError('');
+    try {
+      const res = await fetch(`/api/admin/animals/${animal.db_id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: selectedStatus })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update animal status.');
+      setSavedStatus(selectedStatus);
+      setStatusMessage('Status updated successfully.');
+      onUpdate?.();
+    } catch (err) {
+      setStatusError(err instanceof Error ? err.message : 'Failed to update animal status.');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   if (!isOpen || !animal) return null;
 
@@ -811,21 +845,54 @@ export const ViewAnimalModal = ({ isOpen, onClose, animal }: { isOpen: boolean, 
               </div>
               <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
                 <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit ${
-                  animal.status === 'Certified' ? 'bg-status-success/10 text-status-success' :
-                  animal.status === 'Pending' ? 'bg-status-warning/10 text-status-warning' :
+                  savedStatus === 'Certified' ? 'bg-status-success/10 text-status-success' :
+                  savedStatus === 'Pending' ? 'bg-status-warning/10 text-status-warning' :
+                  savedStatus === 'Review' ? 'bg-brand-accent/10 text-brand-accent' :
                   'bg-status-error/10 text-status-error'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${
-                    animal.status === 'Certified' ? 'bg-status-success' :
-                    animal.status === 'Pending' ? 'bg-status-warning' :
+                    savedStatus === 'Certified' ? 'bg-status-success' :
+                    savedStatus === 'Pending' ? 'bg-status-warning' :
+                    savedStatus === 'Review' ? 'bg-brand-accent' :
                     'bg-status-error'
                   }`} />
-                  {animal.status}
+                  {savedStatus}
                 </span>
                 <span className="px-4 py-1.5 bg-brand-surface rounded-full text-[10px] font-black uppercase tracking-widest text-brand-primary/60">
                   {animal.weight}
                 </span>
               </div>
+              {canEditStatus && <div className="space-y-2">
+                <label htmlFor="animal-profile-status" className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block">
+                  Animal status
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <select
+                    id="animal-profile-status"
+                    value={selectedStatus}
+                    onChange={(event) => {
+                      setSelectedStatus(event.target.value);
+                      setStatusMessage('');
+                      setStatusError('');
+                    }}
+                    className="min-w-40 px-4 py-2.5 bg-brand-surface border border-brand-primary/5 rounded-xl text-sm font-bold appearance-none cursor-pointer focus:ring-2 focus:ring-brand-accent/20 outline-none"
+                  >
+                    <option value="Certified">Certified</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Review">Review</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleStatusUpdate}
+                    disabled={isUpdatingStatus || selectedStatus === savedStatus}
+                    className="min-h-10 px-4 py-2.5 bg-brand-primary text-white rounded-xl text-xs font-bold disabled:opacity-40 transition-opacity"
+                  >
+                    {isUpdatingStatus ? 'Updating...' : 'Update Status'}
+                  </button>
+                </div>
+                {statusMessage && <p role="status" className="text-xs font-semibold text-status-success">{statusMessage}</p>}
+                {statusError && <p role="alert" className="text-xs font-semibold text-status-error">{statusError}</p>}
+              </div>}
             </div>
           </div>
 
@@ -1446,7 +1513,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
                 >
                   <option value="Certified">Certified</option>
                   <option value="Pending">Pending</option>
-                  <option value="Expired">Expired</option>
+                  <option value="Review">Review</option>
                 </select>
               </div>
             </div>
@@ -1916,6 +1983,8 @@ export const AdminAnimalsSection = () => {
       <ViewAnimalModal 
         isOpen={!!viewAnimal}
         onClose={() => setViewAnimal(null)}
+        onUpdate={fetchAnimals}
+        canEditStatus
         animal={viewAnimal}
       />
       
@@ -1983,7 +2052,7 @@ export const AdminAnimalsSection = () => {
                 <option value="All Statuses">All Statuses</option>
                 <option value="Certified">Certified</option>
                 <option value="Pending">Pending</option>
-                <option value="Expired">Expired</option>
+                <option value="Review">Review</option>
               </select>
             </div>
             <div className="relative w-full md:w-auto">
@@ -2051,11 +2120,13 @@ export const AdminAnimalsSection = () => {
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 w-fit ${
                       animal.status === 'Certified' ? 'bg-status-success/10 text-status-success' :
                       animal.status === 'Pending' ? 'bg-status-warning/10 text-status-warning' :
+                      animal.status === 'Review' ? 'bg-brand-accent/10 text-brand-accent' :
                       'bg-status-error/10 text-status-error'
                     }`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${
                         animal.status === 'Certified' ? 'bg-status-success' :
                         animal.status === 'Pending' ? 'bg-status-warning' :
+                        animal.status === 'Review' ? 'bg-brand-accent' :
                         'bg-status-error'
                       }`} />
                       {animal.status}

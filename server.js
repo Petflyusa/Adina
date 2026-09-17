@@ -67,6 +67,7 @@ const applicationLimiter = rateLimit({
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const APPLICATION_STATUSES = new Set(['Pending', 'Approved', 'Rejected']);
 const TRAVEL_STATUSES = new Set(['Verified', 'Rejected']);
+const ANIMAL_STATUSES = new Set(['Certified', 'Pending', 'Review']);
 
 function isNonEmptyString(value, maxLength) {
   return typeof value === 'string' && value.trim().length > 0 && value.trim().length <= maxLength;
@@ -282,7 +283,13 @@ app.get('/api/verify/:microchip', async (req, res) => {
           microchip: animal.microchip,
           registryId: animal.registry_id,
           type: animal.trained_task || 'Assistance Dog',
-          status: animal.status === 'Certified' ? 'Active Certification' : animal.status === 'Pending' ? 'Pending Verification' : 'Expired Certification',
+          status: animal.status === 'Certified'
+            ? 'Active Certification'
+            : animal.status === 'Pending'
+              ? 'Pending Verification'
+              : animal.status === 'Review'
+                ? 'Under Review'
+                : 'Expired Certification',
           gender: animal.gender || 'N/A',
           weight: animal.weight || 'N/A',
           color: animal.color || 'N/A',
@@ -927,6 +934,10 @@ app.get('/api/admin/animals', async (req, res) => {
 // Admin register service animal directly
 app.post('/api/admin/animals', async (req, res) => {
   const data = req.body;
+  const animalStatus = data.status || 'Certified';
+  if (!ANIMAL_STATUSES.has(animalStatus)) {
+    return res.status(400).json({ success: false, error: 'Status must be Certified, Pending, or Review.' });
+  }
   const uploadError = validateImageDataUrl(data.img) || ['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other']
     .map((field) => validateDocumentDataUrl(data[field]))
     .find(Boolean);
@@ -949,7 +960,7 @@ app.post('/api/admin/animals', async (req, res) => {
       [
         registry_id, data.name, data.breed, data.gender, data.weight, data.microchip, data.date_of_birth || null, data.color,
         data.rabies_expiration || null, data.rabies_serial, data.rabies_brand, data.rabies_type,
-        data.facility_name, data.trainer_name, data.trained_task, data.completion_date || null, data.handler_id || null, data.status || 'Certified',
+        data.facility_name, data.trainer_name, data.trained_task, data.completion_date || null, data.handler_id || null, animalStatus,
         petPhotoUrl || 'https://images.unsplash.com/photo-1541888946425-d81bb19480c5?auto=format&fit=crop&q=80&w=100',
         docAttestationUrl || null, docCertificateUrl || null, docIdUrl || null, docOtherUrl || null
       ]
@@ -969,6 +980,9 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
   const { db_id } = req.params;
   const parsedDbId = parseInt(db_id, 10);
   const data = req.body;
+  if (!ANIMAL_STATUSES.has(data.status)) {
+    return res.status(400).json({ success: false, error: 'Status must be Certified, Pending, or Review.' });
+  }
   const uploadError = validateImageDataUrl(data.img) || ['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other']
     .map((field) => validateDocumentDataUrl(data[field]))
     .find(Boolean);
@@ -1009,6 +1023,30 @@ app.put('/api/admin/animals/:db_id', async (req, res) => {
   } catch (err) {
     console.error('Admin edit animal error:', err);
     res.status(500).json({ success: false, error: 'Failed to update animal details.' });
+  }
+});
+
+// Admin update service animal status without overwriting the rest of its profile
+app.patch('/api/admin/animals/:db_id/status', async (req, res) => {
+  const parsedDbId = parseInt(req.params.db_id, 10);
+  const { status } = req.body;
+  if (!ANIMAL_STATUSES.has(status)) {
+    return res.status(400).json({ success: false, error: 'Status must be Certified, Pending, or Review.' });
+  }
+  if (!Number.isInteger(parsedDbId) || parsedDbId <= 0) {
+    return res.status(400).json({ success: false, error: 'A valid animal ID is required.' });
+  }
+
+  try {
+    const [result] = await pool.query('UPDATE animals SET status = ? WHERE id = ?', [status, parsedDbId]);
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ success: false, error: 'Service animal not found.' });
+    }
+    await logActivity('animal_status_update', `Admin updated service animal DB ID ${parsedDbId} status to ${status}`);
+    res.json({ success: true, status });
+  } catch (err) {
+    console.error('Admin update animal status error:', err);
+    res.status(500).json({ success: false, error: 'Failed to update animal status.' });
   }
 });
 
