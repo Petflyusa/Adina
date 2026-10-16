@@ -140,12 +140,28 @@ function readSession(req) {
 }
 
 function requireRole(role) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const session = readSession(req);
     if (!session) return res.status(401).json({ success: false, error: 'Authentication required.' });
     if (session.role !== role) return res.status(403).json({ success: false, error: 'Insufficient permissions.' });
-    req.user = { id: Number(session.sub), role: session.role, name: session.name };
-    next();
+    const userId = Number(session.sub);
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(401).json({ success: false, error: 'Authentication required.' });
+    }
+    try {
+      const [users] = await pool.query(
+        'SELECT id, name, role, status FROM users WHERE id = ? AND role = ? LIMIT 1',
+        [userId, role]
+      );
+      if (users.length === 0 || ['Deleted', 'Suspended', 'Disabled'].includes(users[0].status)) {
+        return res.status(401).json({ success: false, error: 'Authentication required.' });
+      }
+      req.user = { id: users[0].id, role: users[0].role, name: users[0].name };
+      next();
+    } catch (err) {
+      console.error('Authorization lookup error:', err);
+      res.status(503).json({ success: false, error: 'Authentication service unavailable.' });
+    }
   };
 }
 
