@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { after, before, test } from 'node:test';
 import jwt from 'jsonwebtoken';
 import 'dotenv/config';
+import mysql from 'mysql2/promise';
 
 const port = 8127;
 const origin = `http://127.0.0.1:${port}`;
@@ -65,6 +66,52 @@ for (const path of [
     assert.match(response.headers.get('content-type') || '', /^application\/json/);
   });
 }
+
+test('anonymous service-animal document requests are rejected', async () => {
+  const response = await fetch(`${origin}/api/admin/animals/1/documents/doc_id`);
+  assert.equal(response.status, 401);
+});
+
+test('service-animal documents are streamed as validated file bytes', { skip: !hasDatabase }, async (t) => {
+  const db = await mysql.createConnection({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT || 3306),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME
+  });
+  let documents;
+  try {
+    [documents] = await db.query(`
+      SELECT id, 'doc_attestation' AS field, doc_attestation AS value FROM animals WHERE doc_attestation LIKE 'data:%'
+      UNION ALL
+      SELECT id, 'doc_certificate' AS field, doc_certificate AS value FROM animals WHERE doc_certificate LIKE 'data:%'
+      UNION ALL
+      SELECT id, 'doc_id' AS field, doc_id AS value FROM animals WHERE doc_id LIKE 'data:%'
+      UNION ALL
+      SELECT id, 'doc_other' AS field, doc_other AS value FROM animals WHERE doc_other LIKE 'data:%'
+      LIMIT 1
+    `);
+  } finally {
+    await db.end();
+  }
+  if (documents.length === 0) return t.skip('No service-animal data URL documents exist in the configured test database.');
+
+  const { id, field, value } = documents[0];
+  const token = jwt.sign(
+    { sub: '1', role: 'admin', name: 'Security Test Admin' },
+    secret,
+    { expiresIn: '5m', issuer: 'adina-api', audience: 'adina-web' }
+  );
+  const response = await fetch(`${origin}/api/admin/animals/${id}/documents/${field}`, {
+    headers: { Cookie: `adina_session=${token}` }
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /^(application\/pdf|image\/(jpeg|png))/);
+  assert.match(response.headers.get('content-disposition') || '', /^inline;/);
+  const expected = Buffer.from(value.split(',')[1], 'base64');
+  assert.deepEqual(Buffer.from(await response.arrayBuffer()), expected);
+});
 
 test('unknown API route returns a JSON 404 instead of the SPA document', async () => {
   const response = await fetch(`${origin}/api/does-not-exist`);

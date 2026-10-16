@@ -579,6 +579,45 @@ app.get('/api/admin/uploads/:filename', (req, res) => {
   });
 });
 
+// Stream a service-animal document from MySQL instead of exposing its large
+// base64 data URL as a browser link. The route is protected by requireRole.
+app.get('/api/admin/animals/:db_id/documents/:field', async (req, res) => {
+  const animalId = Number(req.params.db_id);
+  const documentColumns = new Set(['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other']);
+  const { field } = req.params;
+  if (!Number.isInteger(animalId) || animalId <= 0 || !documentColumns.has(field)) {
+    return res.status(404).json({ success: false, error: 'Document not found.' });
+  }
+
+  try {
+    const [animals] = await pool.query(`SELECT \`${field}\` AS document FROM animals WHERE id = ? LIMIT 1`, [animalId]);
+    const dataUrl = animals[0]?.document;
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+
+    const validationError = validateDocumentDataUrl(dataUrl);
+    if (validationError) {
+      return res.status(404).json({ success: false, error: 'Document not found.' });
+    }
+    const match = dataUrl.match(/^data:(application\/pdf|image\/jpeg|image\/png);base64,([A-Za-z0-9+/]+={0,2})$/i);
+    if (!match) return res.status(404).json({ success: false, error: 'Document not found.' });
+
+    const buffer = Buffer.from(match[2], 'base64');
+    const extension = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }[match[1].toLowerCase()];
+    res.set({
+      'Content-Type': match[1].toLowerCase(),
+      'Content-Length': String(buffer.length),
+      'Content-Disposition': `inline; filename="service-animal-${animalId}-${field}.${extension}"`,
+      'X-Content-Type-Options': 'nosniff'
+    });
+    res.send(buffer);
+  } catch (err) {
+    console.error('Get service animal document error:', err);
+    res.status(500).json({ success: false, error: 'Failed to load document.' });
+  }
+});
+
 // ==========================================
 // 3. OWNER ENDPOINTS
 // ==========================================

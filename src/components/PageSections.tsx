@@ -64,6 +64,13 @@ import { SectionHeading, Button, ExternalButton } from './UI';
 const privateDocumentUrl = (value: string) => value.startsWith('/uploads/')
   ? `/api/admin/uploads/${value.split('/').pop()}`
   : value;
+const animalDocumentUrl = (animal: any, field: string, value: string) =>
+  value.startsWith('data:') && animal.db_id
+    ? `/api/admin/animals/${animal.db_id}/documents/${field}`
+    : privateDocumentUrl(value);
+const documentLabel = (value: string) => value.startsWith('data:')
+  ? `Uploaded ${value.startsWith('data:application/pdf') ? 'PDF' : 'image'} document`
+  : value.split('/').pop() || 'Uploaded Document';
 
 export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { isOpen: boolean, onClose: () => void, onAdd?: () => void, initialOwner?: string }) => {
   const [searchOwner, setSearchOwner] = React.useState(initialOwner);
@@ -999,12 +1006,12 @@ export const ViewAnimalModal = ({ isOpen, onClose, onUpdate, canEditStatus = fal
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30 mb-1">Attestation Letter</p>
                   <p className="text-xs text-brand-primary/60 truncate max-w-full">
-                    {animal.doc_attestation ? animal.doc_attestation.split('/').pop() : 'Not uploaded'}
+                    {animal.doc_attestation ? documentLabel(animal.doc_attestation) : 'Not uploaded'}
                   </p>
                 </div>
                 {animal.doc_attestation && (
                   <a 
-                    href={privateDocumentUrl(animal.doc_attestation)}
+                    href={animalDocumentUrl(animal, 'doc_attestation', animal.doc_attestation)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -1019,12 +1026,12 @@ export const ViewAnimalModal = ({ isOpen, onClose, onUpdate, canEditStatus = fal
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30 mb-1">Certificate</p>
                   <p className="text-xs text-brand-primary/60 truncate max-w-full">
-                    {animal.doc_certificate ? animal.doc_certificate.split('/').pop() : 'Not uploaded'}
+                    {animal.doc_certificate ? documentLabel(animal.doc_certificate) : 'Not uploaded'}
                   </p>
                 </div>
                 {animal.doc_certificate && (
                   <a 
-                    href={privateDocumentUrl(animal.doc_certificate)}
+                    href={animalDocumentUrl(animal, 'doc_certificate', animal.doc_certificate)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -1039,12 +1046,12 @@ export const ViewAnimalModal = ({ isOpen, onClose, onUpdate, canEditStatus = fal
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30 mb-1">Service Animal ID</p>
                   <p className="text-xs text-brand-primary/60 truncate max-w-full">
-                    {animal.doc_id ? animal.doc_id.split('/').pop() : 'Not uploaded'}
+                    {animal.doc_id ? documentLabel(animal.doc_id) : 'Not uploaded'}
                   </p>
                 </div>
                 {animal.doc_id && (
                   <a 
-                    href={privateDocumentUrl(animal.doc_id)}
+                    href={animalDocumentUrl(animal, 'doc_id', animal.doc_id)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -1059,12 +1066,12 @@ export const ViewAnimalModal = ({ isOpen, onClose, onUpdate, canEditStatus = fal
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30 mb-1">Other Documents</p>
                   <p className="text-xs text-brand-primary/60 truncate max-w-full">
-                    {animal.doc_other ? animal.doc_other.split('/').pop() : 'Not uploaded'}
+                    {animal.doc_other ? documentLabel(animal.doc_other) : 'Not uploaded'}
                   </p>
                 </div>
                 {animal.doc_other && (
                   <a 
-                    href={privateDocumentUrl(animal.doc_other)}
+                    href={animalDocumentUrl(animal, 'doc_other', animal.doc_other)}
                     target="_blank" 
                     rel="noopener noreferrer"
                     className="mt-3 text-[10px] font-black uppercase tracking-widest text-brand-primary hover:text-brand-primary/80 flex items-center gap-1.5 w-fit border-b border-brand-primary/20 pb-0.5"
@@ -1175,6 +1182,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
       
       const getFileBasename = (url: string) => {
         if (!url) return '';
+        if (url.startsWith('data:')) return documentLabel(url);
         return url.split('/').pop() || 'Uploaded Document';
       };
       
