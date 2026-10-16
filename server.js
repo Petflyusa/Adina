@@ -56,6 +56,10 @@ app.use(helmet({
 app.use(express.json({ limit: '32mb' }));
 app.use(cookieParser());
 app.use('/api', requireSameOrigin);
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use('/uploads', (req, res, next) => {
   if (/^(?:app_id_doc|id_doc|attestation|certificate|other_doc)_/i.test(path.basename(req.path))) {
     return res.status(404).end();

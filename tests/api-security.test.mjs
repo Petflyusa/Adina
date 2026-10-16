@@ -92,6 +92,7 @@ test('responses include baseline security headers', async () => {
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
   assert.match(response.headers.get('content-security-policy') || '', /img-src[^;]*https:\/\/images\.unsplash\.com/);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
 });
 
 test('application submission rejects missing required fields before database access', async () => {
