@@ -24,7 +24,7 @@ CREATE TABLE users (
   img varchar(500) DEFAULT NULL,
   id_type varchar(50) DEFAULT NULL,
   id_last4 varchar(4) DEFAULT NULL,
-  id_doc varchar(500) DEFAULT NULL,
+  id_doc text DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE (email),
   UNIQUE (registry_id)
@@ -59,10 +59,10 @@ CREATE TABLE animals (
   handler_id integer DEFAULT NULL,
   status varchar(50) DEFAULT 'Certified',
   img text DEFAULT NULL,
-  doc_attestation varchar(500) DEFAULT NULL,
-  doc_certificate varchar(500) DEFAULT NULL,
-  doc_id varchar(500) DEFAULT NULL,
-  doc_other varchar(500) DEFAULT NULL,
+  doc_attestation text DEFAULT NULL,
+  doc_certificate text DEFAULT NULL,
+  doc_id text DEFAULT NULL,
+  doc_other text DEFAULT NULL,
   PRIMARY KEY (id),
   UNIQUE (registry_id),
   UNIQUE (microchip),
@@ -105,6 +105,7 @@ CREATE TABLE applications (
   address text DEFAULT NULL,
   id_type varchar(50) DEFAULT 'Passport',
   id_last4 varchar(4) DEFAULT NULL,
+  id_doc text DEFAULT NULL,
   pet_name varchar(255) NOT NULL,
   pet_breed varchar(255) NOT NULL,
   pet_gender varchar(50) DEFAULT 'Male',
@@ -126,8 +127,8 @@ CREATE TABLE applications (
   PRIMARY KEY (id)
 );
 
-INSERT INTO applications (id, handler_name, phone, email, country, address, id_type, id_last4, pet_name, pet_breed, pet_gender, pet_weight, pet_microchip, pet_dob, pet_color, rabies_expiration, rabies_serial, rabies_brand, rabies_type, facility_name, trainer_name, trained_task, completion_date, status, created_at, pet_photo) VALUES
-(1, 'Example Applicant', NULL, 'applicant@example.invalid', 'United States', NULL, 'Passport', '0000', 'Example Dog', 'Mixed Breed', 'Male', '20kg', '000000000000001', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', 'DEMO', 'Demo', '1-Year Vaccine', 'Example Training Center', 'Example Trainer', 'Mobility Assistance Dog', '2023-10-09 16:00:00', 'Approved', '2026-05-19 19:48:26', NULL);
+INSERT INTO applications (id, handler_name, phone, email, country, address, id_type, id_last4, id_doc, pet_name, pet_breed, pet_gender, pet_weight, pet_microchip, pet_dob, pet_color, rabies_expiration, rabies_serial, rabies_brand, rabies_type, facility_name, trainer_name, trained_task, completion_date, status, created_at, pet_photo) VALUES
+(1, 'Example Applicant', NULL, 'applicant@example.invalid', 'United States', NULL, 'Passport', '0000', NULL, 'Example Dog', 'Mixed Breed', 'Male', '20kg', '000000000000001', '2024-07-22 16:00:00', 'White', '2026-10-09 16:00:00', 'DEMO', 'Demo', '1-Year Vaccine', 'Example Training Center', 'Example Trainer', 'Mobility Assistance Dog', '2023-10-09 16:00:00', 'Approved', '2026-05-19 19:48:26', NULL);
 
 
 CREATE TABLE activities (

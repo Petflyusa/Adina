@@ -27,7 +27,9 @@ app.use(helmet({
   },
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-app.use(express.json({ limit: '10mb' }));
+// Four documents may be uploaded in one request. Each is limited to 5 MB
+// after decoding, and base64 adds roughly 33% overhead.
+app.use(express.json({ limit: '32mb' }));
 app.use(cookieParser());
 app.use('/uploads', (req, res, next) => {
   if (/^(?:app_id_doc|id_doc|attestation|certificate|other_doc)_/i.test(path.basename(req.path))) {
@@ -162,41 +164,18 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// File storage - local filesystem (Hostinger server)
+// File storage - keep uploaded documents in the database so they survive
+// deployments and serverless instance replacement. Existing local URL values
+// remain supported by the protected download route below.
 async function saveBase64File(base64Str, prefix = 'doc') {
   if (!base64Str || !base64Str.startsWith('data:')) {
     return base64Str;
   }
 
-  try {
-    const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) {
-      return base64Str;
-    }
-
-    const mimeType = matches[1];
-    let extension = mimeType.split('/')[1] || 'bin';
-    if (extension.includes('+')) extension = extension.split('+')[0];
-    if (extension.includes('jpeg') || extension.includes('jpg')) {
-      extension = 'jpg';
-    } else if (extension.includes('png')) {
-      extension = 'png';
-    }
-
-    const base64Data = matches[2];
-    const buffer = Buffer.from(base64Data, 'base64');
-
-    const filename = `${prefix}_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
-    const filepath = path.join(uploadsDir, filename);
-
-    fs.writeFileSync(filepath, buffer);
-
-    return `/api/admin/uploads/${filename}`;
-  } catch (err) {
-    console.error('Failed to write file to disk (serverless env?), storing base64 data URL directly:', err.message);
-    // Vercel serverless has ephemeral filesystem — fall back to storing the base64 data URL directly in the DB
-    return base64Str;
-  }
+  // The caller has already validated the MIME type, magic bytes, and size.
+  // Keeping the original data URL preserves the document content without
+  // depending on a deployment-local filesystem.
+  return base64Str;
 }
 
 async function saveBase64Image(base64Str) {
@@ -206,10 +185,29 @@ async function saveBase64Image(base64Str) {
   return base64Str;
 }
 
-// Check database connectivity only. Schema changes are applied explicitly by operators.
+// Check database connectivity and apply small compatibility migrations.
 (async () => {
   try {
     const conn = await pool.getConnection();
+    // Document data URLs can be several megabytes. Upgrade older installations
+    // that still have the original VARCHAR columns before accepting uploads.
+    for (const [table, columns] of Object.entries({
+      users: ['id_doc'],
+      animals: ['doc_attestation', 'doc_certificate', 'doc_id', 'doc_other'],
+      applications: ['id_doc']
+    })) {
+      for (const column of columns) {
+        try {
+          await conn.query(`ALTER TABLE \`${table}\` MODIFY COLUMN \`${column}\` MEDIUMTEXT DEFAULT NULL`);
+        } catch (err) {
+          // Keep startup compatible with installations where an optional
+          // legacy column is not present yet.
+          if (!/doesn't exist|unknown column|does not exist/i.test(err.message)) {
+            console.warn(`Migration check for ${table}.${column} failed:`, err.message);
+          }
+        }
+      }
+    }
     console.log('Successfully connected to MySQL database.');
     conn.release();
   } catch (err) {
