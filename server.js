@@ -26,6 +26,7 @@ try {
   console.warn('APP_URL is invalid; same-origin checks will use the request host only.');
 }
 const stateChangingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const canonicalAppOrigin = 'https://adina.petflyinc.com';
 
 function requireSameOrigin(req, res, next) {
   if (!stateChangingMethods.has(req.method)) return next();
@@ -36,7 +37,10 @@ function requireSameOrigin(req, res, next) {
   if (!origin) return next();
 
   const requestOrigin = `${req.protocol}://${req.get('host')}`;
-  const allowedOrigins = new Set([requestOrigin, configuredAppOrigin].filter(Boolean));
+  // The hosting proxy may expose an internal function hostname rather than
+  // the public site hostname. Include the known canonical site origin so
+  // browser requests from the actual website continue to pass that check.
+  const allowedOrigins = new Set([requestOrigin, configuredAppOrigin, canonicalAppOrigin].filter(Boolean));
   if (!allowedOrigins.has(origin)) {
     return res.status(403).json({ success: false, error: 'Cross-origin request blocked.' });
   }

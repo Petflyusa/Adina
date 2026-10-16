@@ -114,6 +114,15 @@ test('state-changing API requests reject a foreign Origin', async () => {
   assert.deepEqual(await response.json(), { success: false, error: 'Cross-origin request blocked.' });
 });
 
+test('production site origin is accepted behind a hosting proxy', async () => {
+  const response = await fetch(`${origin}/api/auth/logout`, {
+    method: 'POST',
+    headers: { Origin: 'https://adina.petflyinc.com' }
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { success: true });
+});
+
 test('registration rejects invalid identity and password fields before database access', async () => {
   const response = await fetch(`${origin}/api/auth/register`, {
     method: 'POST',
