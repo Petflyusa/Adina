@@ -72,6 +72,43 @@ const documentLabel = (value: string) => value.startsWith('data:')
   ? `Uploaded ${value.startsWith('data:application/pdf') ? 'PDF' : 'image'} document`
   : value.split('/').pop() || 'Uploaded Document';
 
+const DocumentPreview = ({ src, name }: { src: string; name: string }) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  if (!src) return null;
+  const isPdf = src.startsWith('data:application/pdf') || /\.pdf(?:$|\?)/i.test(src);
+  return (
+    <>
+      <button type="button" onClick={() => setIsOpen(true)} aria-label={`Enlarge preview of ${name}`} className="group flex w-full items-center gap-3 rounded-xl border border-brand-primary/10 bg-white p-2 text-left hover:border-brand-primary/30">
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-surface">
+          {isPdf
+            ? <iframe title={`${name} thumbnail`} src={src} tabIndex={-1} className="pointer-events-none h-24 w-24 scale-75 origin-center" />
+            : <img src={src} alt="" className="h-full w-full object-cover" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-bold text-brand-primary">{name}</span>
+          <span className="mt-1 block text-[10px] font-bold uppercase tracking-wider text-brand-primary/40">Click to enlarge</span>
+        </span>
+        <Eye className="mr-2 h-4 w-4 shrink-0 text-brand-primary/40 group-hover:text-brand-primary" />
+      </button>
+      {isOpen && (
+        <div role="dialog" aria-modal="true" aria-label={`Document preview: ${name}`} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4" onClick={() => setIsOpen(false)}>
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-brand-primary/10 px-5 py-4">
+              <h3 className="truncate text-sm font-bold text-brand-primary">{name}</h3>
+              <button type="button" onClick={() => setIsOpen(false)} aria-label="Close document preview" className="rounded-full p-2 text-brand-primary/60 hover:bg-brand-surface hover:text-brand-primary"><XCircle className="h-5 w-5" /></button>
+            </div>
+            <div className="min-h-0 flex-1 bg-brand-surface">
+              {isPdf
+                ? <iframe title={name} src={src} className="h-full w-full" />
+                : <div className="flex h-full items-center justify-center overflow-auto p-4"><img src={src} alt={name} className="max-h-full max-w-full object-contain" /></div>}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { isOpen: boolean, onClose: () => void, onAdd?: () => void, initialOwner?: string }) => {
   const [searchOwner, setSearchOwner] = React.useState(initialOwner);
   const [selectedOwner, setSelectedOwner] = React.useState<any>(null);
@@ -674,6 +711,7 @@ export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_attestation.startsWith('data:') ? formData.doc_attestation : ''} name={attestationFileName} />
                 </div>
 
                 {/* Certificate */}
@@ -691,6 +729,7 @@ export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_certificate.startsWith('data:') ? formData.doc_certificate : ''} name={certificateFileName} />
                 </div>
 
                 {/* Service Animal ID */}
@@ -708,6 +747,7 @@ export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_id.startsWith('data:') ? formData.doc_id : ''} name={idDocFileName} />
                 </div>
 
                 {/* Other Documents */}
@@ -725,6 +765,7 @@ export const AddAnimalModal = ({ isOpen, onClose, onAdd, initialOwner = '' }: { 
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_other.startsWith('data:') ? formData.doc_other : ''} name={otherFileName} />
                 </div>
               </div>
             </div>
@@ -1733,6 +1774,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_attestation.startsWith('data:') ? formData.doc_attestation : privateDocumentUrl(formData.doc_attestation)} name={attestationFileName} />
                 </div>
 
                 {/* Certificate */}
@@ -1750,6 +1792,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_certificate.startsWith('data:') ? formData.doc_certificate : privateDocumentUrl(formData.doc_certificate)} name={certificateFileName} />
                 </div>
 
                 {/* Service Animal ID */}
@@ -1767,6 +1810,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_id.startsWith('data:') ? formData.doc_id : privateDocumentUrl(formData.doc_id)} name={idDocFileName} />
                 </div>
 
                 {/* Other Documents */}
@@ -1784,6 +1828,7 @@ export const EditAnimalModal = ({ isOpen, onClose, onUpdate, animal }: { isOpen:
                       className="absolute inset-0 opacity-0 cursor-pointer" 
                     />
                   </div>
+                  <DocumentPreview src={formData.doc_other.startsWith('data:') ? formData.doc_other : privateDocumentUrl(formData.doc_other)} name={otherFileName} />
                 </div>
               </div>
             </div>
