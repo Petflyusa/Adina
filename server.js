@@ -19,6 +19,30 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.disable('x-powered-by');
+let configuredAppOrigin = null;
+try {
+  configuredAppOrigin = process.env.APP_URL ? new URL(process.env.APP_URL).origin : null;
+} catch {
+  console.warn('APP_URL is invalid; same-origin checks will use the request host only.');
+}
+const stateChangingMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function requireSameOrigin(req, res, next) {
+  if (!stateChangingMethods.has(req.method)) return next();
+
+  const origin = req.get('origin');
+  // Requests without Origin are allowed for CLI/server-to-server clients.
+  // Browsers send Origin for cross-site state-changing fetches/forms.
+  if (!origin) return next();
+
+  const requestOrigin = `${req.protocol}://${req.get('host')}`;
+  const allowedOrigins = new Set([requestOrigin, configuredAppOrigin].filter(Boolean));
+  if (!allowedOrigins.has(origin)) {
+    return res.status(403).json({ success: false, error: 'Cross-origin request blocked.' });
+  }
+  next();
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -31,6 +55,7 @@ app.use(helmet({
 // after decoding, and base64 adds roughly 33% overhead.
 app.use(express.json({ limit: '32mb' }));
 app.use(cookieParser());
+app.use('/api', requireSameOrigin);
 app.use('/uploads', (req, res, next) => {
   if (/^(?:app_id_doc|id_doc|attestation|certificate|other_doc)_/i.test(path.basename(req.path))) {
     return res.status(404).end();
@@ -731,6 +756,9 @@ app.put(['/api/owner/profile', '/api/owner/profile/:ownerId'], async (req, res) 
 app.put(['/api/owner/password', '/api/owner/password/:ownerId'], async (req, res) => {
   const ownerId = req.user.id;
   const { currentPassword, newPassword } = req.body;
+  if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({ success: false, error: 'New password must be between 8 and 128 characters.' });
+  }
   try {
     const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parseInt(ownerId, 10), 'owner']);
     if (users.length === 0) {
@@ -1459,6 +1487,12 @@ app.put('/api/admin/password/:userId', async (req, res) => {
   const { userId } = req.params;
   const parsedUserId = parseInt(userId, 10);
   const { currentPassword, newPassword } = req.body;
+  if (parsedUserId !== req.user.id) {
+    return res.status(403).json({ success: false, error: 'Administrators may only change their own password.' });
+  }
+  if (typeof newPassword !== 'string' || newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({ success: false, error: 'New password must be between 8 and 128 characters.' });
+  }
   try {
     const [users] = await pool.query('SELECT * FROM users WHERE id = ? AND role = ?', [parsedUserId, 'admin']);
     if (users.length === 0) {

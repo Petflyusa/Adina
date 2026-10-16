@@ -104,6 +104,15 @@ test('application submission rejects missing required fields before database acc
   assert.match(response.headers.get('content-type') || '', /^application\/json/);
 });
 
+test('state-changing API requests reject a foreign Origin', async () => {
+  const response = await fetch(`${origin}/api/auth/logout`, {
+    method: 'POST',
+    headers: { Origin: 'https://attacker.example' }
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { success: false, error: 'Cross-origin request blocked.' });
+});
+
 test('registration rejects invalid identity and password fields before database access', async () => {
   const response = await fetch(`${origin}/api/auth/register`, {
     method: 'POST',
@@ -173,4 +182,17 @@ test('admin animal update rejects unsupported status before database access', as
       error: 'Status must be Certified, Pending, or Review.'
     });
   }
+});
+
+test('admin password changes cannot target another administrator', async () => {
+  const response = await fetch(`${origin}/api/admin/password/2`, {
+    method: 'PUT',
+    headers: adminHeaders,
+    body: JSON.stringify({ currentPassword: 'unused', newPassword: 'strong-password-123' })
+  });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), {
+    success: false,
+    error: 'Administrators may only change their own password.'
+  });
 });
